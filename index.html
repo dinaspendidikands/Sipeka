@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SIPEKA — Penilaian Kinerja Kepala Sekolah & Guru | Disdik Deli Serdang</title>
+<meta name="description" content="Sistem Penilaian Kinerja Kepala Sekolah dan Guru jenjang PAUD, SD, dan SMP — Dinas Pendidikan Kabupaten Deli Serdang">
+<style>
+  :root{
+    --biru:#0d4f8b; --biru-tua:#093a66; --biru-muda:#e8f1fa;
+    --hijau:#1e8e5a; --kuning:#f5a623; --merah:#d64541;
+    --abu:#5b6b7b; --abu-muda:#f4f6f9; --putih:#ffffff;
+    --radius:14px; --shadow:0 4px 18px rgba(13,79,139,.10);
+  }
+  *{margin:0;padding:0;box-sizing:border-box;font-family:'Segoe UI',system-ui,-apple-system,sans-serif}
+  body{background:var(--abu-muda);color:#22303e;line-height:1.55}
+
+  /* ===== Topbar ===== */
+  .topbar{background:var(--biru-tua);color:#cfe2f5;font-size:.8rem;padding:.4rem 1.2rem;display:flex;justify-content:space-between;flex-wrap:wrap;gap:.3rem}
+  .topbar a{color:#cfe2f5;text-decoration:none}
+
+  /* ===== Header ===== */
+  header{background:var(--putih);box-shadow:var(--shadow);position:sticky;top:0;z-index:50}
+  .nav{max-width:1100px;margin:auto;display:flex;align-items:center;justify-content:space-between;padding:.7rem 1.2rem;gap:1rem}
+  .brand{display:flex;align-items:center;gap:.7rem}
+  .brand .logo{width:46px;height:46px;border-radius:50%;background:linear-gradient(135deg,var(--biru),var(--hijau));display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:.85rem;flex-shrink:0}
+  .brand h1{font-size:1.05rem;color:var(--biru-tua);line-height:1.2}
+  .brand small{display:block;font-weight:400;color:var(--abu);font-size:.74rem}
+  nav ul{display:flex;list-style:none;gap:.2rem;flex-wrap:wrap}
+  nav a{display:block;padding:.5rem .8rem;border-radius:8px;color:#33475b;text-decoration:none;font-size:.9rem;font-weight:600}
+  nav a:hover{background:var(--biru-muda);color:var(--biru)}
+  .btn-admin{background:var(--biru);color:#fff !important}
+  .btn-admin:hover{background:var(--biru-tua) !important}
+
+  /* ===== Hero ===== */
+  .hero{background:linear-gradient(120deg,var(--biru-tua) 0%,var(--biru) 55%,#1d6db3 100%);color:#fff;padding:3.2rem 1.2rem 4.5rem;text-align:center;position:relative;overflow:hidden}
+  .hero::after{content:"";position:absolute;inset:auto 0 -1px 0;height:60px;background:var(--abu-muda);clip-path:ellipse(60% 100% at 50% 100%)}
+  .hero h2{font-size:clamp(1.5rem,4vw,2.4rem);max-width:820px;margin:0 auto .8rem}
+  .hero p{max-width:680px;margin:0 auto 1.6rem;color:#dcebf9;font-size:1.02rem}
+  .hero .badge{display:inline-block;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.35);padding:.3rem .9rem;border-radius:999px;font-size:.8rem;margin-bottom:1.1rem;letter-spacing:.4px}
+  .hero-cta{display:flex;gap:.8rem;justify-content:center;flex-wrap:wrap}
+  .btn{display:inline-block;padding:.75rem 1.5rem;border-radius:10px;font-weight:700;text-decoration:none;font-size:.95rem;transition:.2s}
+  .btn-primary{background:var(--kuning);color:#3a2a00}
+  .btn-primary:hover{transform:translateY(-2px);box-shadow:0 6px 16px rgba(0,0,0,.25)}
+  .btn-outline{border:2px solid #fff;color:#fff}
+  .btn-outline:hover{background:#fff;color:var(--biru)}
+
+  /* ===== Stats ===== */
+  .stats{max-width:900px;margin:-2.4rem auto 0;display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:1rem;padding:0 1.2rem;position:relative;z-index:5}
+  .stat{background:#fff;border-radius:var(--radius);box-shadow:var(--shadow);text-align:center;padding:1.1rem .8rem}
+  .stat b{display:block;font-size:1.5rem;color:var(--biru)}
+  .stat span{font-size:.82rem;color:var(--abu)}
+
+  /* ===== Sections ===== */
+  section{max-width:1100px;margin:auto;padding:3rem 1.2rem 1rem}
+  .sec-title{text-align:center;margin-bottom:.4rem;color:var(--biru-tua);font-size:1.5rem}
+  .sec-sub{text-align:center;color:var(--abu);max-width:640px;margin:0 auto 2rem;font-size:.95rem}
+
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:1.2rem}
+  .card{background:#fff;border-radius:var(--radius);box-shadow:var(--shadow);padding:1.5rem 1.4rem;display:flex;flex-direction:column;transition:.2s;border-top:4px solid transparent}
+  .card:hover{transform:translateY(-4px)}
+  .card .icon{width:52px;height:52px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:1.5rem;margin-bottom:.9rem}
+  .card h3{font-size:1.06rem;color:var(--biru-tua);margin-bottom:.4rem}
+  .card p{font-size:.88rem;color:var(--abu);flex:1;margin-bottom:1rem}
+  .card .link{font-weight:700;font-size:.9rem;text-decoration:none}
+  .c-biru{border-top-color:var(--biru)} .c-biru .icon{background:var(--biru-muda)} .c-biru .link{color:var(--biru)}
+  .c-hijau{border-top-color:var(--hijau)} .c-hijau .icon{background:#e6f5ee} .c-hijau .link{color:var(--hijau)}
+  .c-kuning{border-top-color:var(--kuning)} .c-kuning .icon{background:#fdf3e0} .c-kuning .link{color:#b97c0a}
+  .c-ungu{border-top-color:#7b5ea7} .c-ungu .icon{background:#f1ecf9} .c-ungu .link{color:#7b5ea7}
+
+  .tag{display:inline-block;font-size:.68rem;font-weight:700;padding:.15rem .55rem;border-radius:999px;margin-left:.4rem;vertical-align:middle}
+  .tag-admin{background:#fde8e7;color:var(--merah)}
+  .tag-publik{background:#e6f5ee;color:var(--hijau)}
+
+  /* ===== Steps ===== */
+  .steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1rem;counter-reset:langkah}
+  .step{background:#fff;border-radius:var(--radius);box-shadow:var(--shadow);padding:1.3rem;position:relative}
+  .step::before{counter-increment:langkah;content:counter(langkah);position:absolute;top:-14px;left:1.1rem;width:30px;height:30px;border-radius:50%;background:var(--biru);color:#fff;font-weight:800;display:flex;align-items:center;justify-content:center;font-size:.9rem}
+  .step h4{margin:.4rem 0 .3rem;font-size:.95rem;color:var(--biru-tua)}
+  .step p{font-size:.84rem;color:var(--abu)}
+
+  /* ===== Offline banner ===== */
+  .offline{background:linear-gradient(120deg,var(--hijau),#167046);border-radius:var(--radius);color:#fff;padding:1.8rem 1.6rem;display:flex;align-items:center;gap:1.4rem;flex-wrap:wrap;margin-top:2.5rem}
+  .offline .ic{font-size:2.4rem}
+  .offline h3{margin-bottom:.3rem}
+  .offline p{font-size:.9rem;color:#dff2e8;max-width:600px}
+  .offline .btn{margin-left:auto;background:#fff;color:var(--hijau)}
+
+  /* ===== Footer ===== */
+  footer{background:var(--biru-tua);color:#bcd3e8;margin-top:3.5rem;padding:2.2rem 1.2rem 1.2rem;font-size:.85rem}
+  .foot{max-width:1100px;margin:auto;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:1.5rem}
+  footer h4{color:#fff;margin-bottom:.6rem;font-size:.95rem}
+  footer a{color:#bcd3e8;text-decoration:none;display:block;padding:.15rem 0}
+  footer a:hover{color:#fff}
+  .copy{text-align:center;border-top:1px solid rgba(255,255,255,.15);margin-top:1.8rem;padding-top:1rem;font-size:.78rem}
+
+  /* ===== Modal login admin (draft) ===== */
+  dialog{border:none;border-radius:var(--radius);box-shadow:0 10px 40px rgba(0,0,0,.3);padding:2rem;max-width:360px;width:90%}
+  dialog::backdrop{background:rgba(9,58,102,.55)}
+  dialog h3{color:var(--biru-tua);margin-bottom:.4rem}
+  dialog p{font-size:.85rem;color:var(--abu);margin-bottom:1rem}
+  dialog input{width:100%;padding:.65rem .8rem;border:1.5px solid #c9d6e2;border-radius:8px;font-size:.95rem;margin-bottom:1rem}
+  dialog .row{display:flex;gap:.6rem;justify-content:flex-end}
+  dialog button{padding:.55rem 1.1rem;border:none;border-radius:8px;font-weight:700;cursor:pointer}
+  .b-masuk{background:var(--biru);color:#fff}
+  .b-batal{background:#e4e9ef;color:#33475b}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <span>📍 Jl. Karya Asih No. 1, Lubuk Pakam — Dinas Pendidikan Kab. Deli Serdang</span>
+  <a href="mailto:disdik@deliserdangkab.go.id">✉ disdik@deliserdangkab.go.id</a>
+</div>
+
+<header>
+  <div class="nav">
+    <div class="brand">
+      <div class="logo">DS</div>
+      <h1>SIPEKA Deli Serdang
+        <small>Sistem Penilaian Kinerja Kepala Sekolah &amp; Guru</small>
+      </h1>
+    </div>
+    <nav>
+      <ul>
+        <li><a href="#penilaian">Penilaian</a></li>
+        <li><a href="#rapor">Cetak Rapor</a></li>
+        <li><a href="#alur">Alur</a></li>
+        <li><a href="admin.html" class="btn-admin">🔒 Masuk Admin</a></li>
+      </ul>
+    </nav>
+  </div>
+</header>
+
+<section class="hero" style="max-width:none">
+  <span class="badge">Tahun Penilaian 2026 • PAUD/TK • SD • SMP</span>
+  <h2>Penilaian Kinerja Kepala Sekolah &amp; Guru yang Terukur dan Transparan</h2>
+  <p>Pengisian instrumen penilaian oleh pengawas dan kepala sekolah, perhitungan nilai otomatis,
+     cetak rapor dengan QR dokumentasi, hingga laporan kinerja se-Kabupaten Deli Serdang.</p>
+  <div class="hero-cta">
+    <a class="btn btn-primary" href="#penilaian">📝 Mulai Penilaian</a>
+    <a class="btn btn-outline" href="#rapor">🖨 Cetak Rapor</a>
+  </div>
+</section>
+
+<div class="stats">
+  <div class="stat"><b>±600</b><span>Kepala Sekolah</span></div>
+  <div class="stat"><b>±10.000</b><span>Guru</span></div>
+  <div class="stat"><b>3</b><span>Jenjang (PAUD, SD, SMP)</span></div>
+  <div class="stat"><b>22</b><span>Kecamatan</span></div>
+</div>
+
+<!-- ===== FORM PENILAIAN ===== -->
+<section id="penilaian">
+  <h2 class="sec-title">Form Penilaian</h2>
+  <p class="sec-sub">Identitas sekolah, kepala sekolah, dan pengawas terisi otomatis dari master data — cukup pilih sekolah Anda.</p>
+  <div class="grid">
+    <div class="card c-biru">
+      <div class="icon">🏫</div>
+      <h3>Kepala Sekolah SD &amp; SMP <span class="tag tag-publik">Pengawas</span></h3>
+      <p>26 indikator dalam 6 kelompok: Performance Sekolah, Tata Kelola Sampah, Inovasi, Indeks Kepuasan, Prestasi Murid, dan Dokumen Sekolah. Skala 1–5 (Baseline, Target, Capaian) per Triwulan/Bulan/Minggu.</p>
+      <a class="link" href="form-ks-sd-smp.html">Isi Penilaian →</a>
+    </div>
+    <div class="card c-hijau">
+      <div class="icon">🧸</div>
+      <h3>Kepala Sekolah PAUD/TK <span class="tag tag-publik">Pengawas</span></h3>
+      <p>17 indikator dalam 7 kelompok, termasuk Kebijakan Sekolah Ramah Anak, 7 KAIH, Tumbuh Kembang Anak, dan Kemitraan. Dinilai per Bulan dan Minggu.</p>
+      <a class="link" href="form-ks-paud.html">Isi Penilaian →</a>
+    </div>
+    <div class="card c-kuning">
+      <div class="icon">👩‍🏫</div>
+      <h3>Guru <span class="tag tag-publik">Kepala Sekolah</span></h3>
+      <p>Checklist observasi 5 kelompok: Manajemen Ruang, Tata Kelola Sampah, Inovasi &amp; Profesi, Kepuasan &amp; Prestasi Siswa, serta Praktek Pembelajaran. Nilai otomatis dalam persen.</p>
+      <a class="link" href="form-guru.html">Isi Penilaian →</a>
+    </div>
+  </div>
+</section>
+
+<!-- ===== RAPOR & ADMIN ===== -->
+<section id="rapor">
+  <h2 class="sec-title">Rapor &amp; Laporan</h2>
+  <p class="sec-sub">Rapor dicetak per bulan, dilengkapi link dokumentasi yang dapat diklik dan QR code per indikator.</p>
+  <div class="grid">
+    <div class="card c-biru">
+      <div class="icon">🖨</div>
+      <h3>Cetak Rapor <span class="tag tag-publik">Publik</span></h3>
+      <p>Tiga format: Rapor KS PAUD, Rapor KS SD &amp; SMP, dan Rapor Guru — lengkap dengan nilai per indikator, kategori, QR dokumentasi, dan blok tanda tangan. Siap cetak A4 / PDF.</p>
+      <a class="link" href="rapor.html">Buka Cetak Rapor →</a>
+    </div>
+    <div class="card c-ungu">
+      <div class="icon">📊</div>
+      <h3>Laporan &amp; Dashboard <span class="tag tag-admin">Khusus Admin</span></h3>
+      <p>Chart kinerja per kelompok indikator, tren bulanan, nilai tertinggi &amp; terendah, dan ranking kepala sekolah per kelompok baseline (1–1,9 · 2–2,9 · 3–3,9 · 4–5).</p>
+      <a class="link" href="dashboard.html">🔒 Masuk untuk Membuka →</a>
+    </div>
+    <div class="card c-ungu">
+      <div class="icon">📥</div>
+      <h3>Tarik Data Offline <span class="tag tag-admin">Khusus Admin</span></h3>
+      <p>Unduh snapshot data agar dashboard, chart, dan rapor tetap dapat dibuka serta dicetak tanpa internet. Tersedia juga ekspor Excel/CSV.</p>
+      <a class="link" href="dashboard.html">🔒 Masuk untuk Membuka →</a>
+    </div>
+    <div class="card c-ungu">
+      <div class="icon">⚙️</div>
+      <h3>Pengaturan <span class="tag tag-admin">Khusus Admin</span></h3>
+      <p>Atur ambang kategori nilai (Sangat Baik, Baik, Cukup, Kurang) untuk kepala sekolah dan guru, serta batas kelompok baseline ranking — tanpa mengubah kode.</p>
+      <a class="link" href="admin.html">🔒 Masuk untuk Membuka →</a>
+    </div>
+  </div>
+</section>
+
+<!-- ===== ALUR ===== -->
+<section id="alur">
+  <h2 class="sec-title">Alur Penilaian</h2>
+  <p class="sec-sub">Empat langkah sederhana dari pengisian hingga rapor.</p>
+  <div class="steps">
+    <div class="step"><h4>Pilih Sekolah</h4><p>Pilih kecamatan dan sekolah — NPSN, nama kepala sekolah, dan pengawas terisi otomatis.</p></div>
+    <div class="step"><h4>Isi Instrumen</h4><p>Isi nilai tiap indikator beserta link dokumentasi bukti di Google Drive.</p></div>
+    <div class="step"><h4>Nilai Otomatis</h4><p>Sistem menghitung rata-rata, kinerja per kelompok, dan kategori secara otomatis.</p></div>
+    <div class="step"><h4>Cetak Rapor</h4><p>Rapor bulanan siap cetak dengan QR code dokumentasi dan blok tanda tangan.</p></div>
+  </div>
+
+  <div class="offline">
+    <div class="ic">📶</div>
+    <div>
+      <h3>Tetap Bisa Dibuka Tanpa Internet</h3>
+      <p>Admin dapat menarik data terlebih dahulu; setelah itu laporan, chart, ranking, dan rapor tetap dapat diakses dan dicetak secara offline.</p>
+    </div>
+    <a class="btn" href="dashboard.html">🔒 Tarik Data</a>
+  </div>
+</section>
+
+<footer>
+  <div class="foot">
+    <div>
+      <h4>SIPEKA Deli Serdang</h4>
+      <p>Sistem Penilaian Kinerja Kepala Sekolah dan Guru jenjang PAUD/TK, SD, dan SMP di lingkungan Dinas Pendidikan Kabupaten Deli Serdang.</p>
+    </div>
+    <div>
+      <h4>Menu</h4>
+      <a href="#penilaian">Form Penilaian</a>
+      <a href="rapor.html">Cetak Rapor</a>
+      <a href="dashboard.html">Laporan &amp; Dashboard (Admin)</a>
+      <a href="dashboard.html">Tarik Data (Admin)</a>
+    </div>
+    <div>
+      <h4>Kontak</h4>
+      <a href="mailto:disdik@deliserdangkab.go.id">✉ disdik@deliserdangkab.go.id</a>
+      <a href="#">📍 Jl. Karya Asih No. 1, Lubuk Pakam</a>
+    </div>
+  </div>
+  <div class="copy">© 2026 Dinas Pendidikan Kabupaten Deli Serdang — SIPEKA v1.0</div>
+</footer>
+
+<script>
+  // service worker: agar halaman dapat dibuka kembali saat offline
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(function(){});
+</script>
+
+</body>
+</html>

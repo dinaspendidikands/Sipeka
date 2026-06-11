@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin — SIPEKA</title>
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<header>
+  <div class="nav">
+    <a class="brand" href="index.html">
+      <div class="logo">DS</div>
+      <h1>SIPEKA Deli Serdang<small>Halaman Admin</small></h1>
+    </a>
+    <nav><ul>
+      <li><a href="index.html">Beranda</a></li>
+      <li><a href="dashboard.html">Dashboard</a></li>
+      <li><a href="admin.html" class="aktif">Pengaturan</a></li>
+      <li><a href="#" id="btnKeluar" style="display:none">Keluar</a></li>
+    </ul></nav>
+  </div>
+</header>
+<main>
+  <!-- ===== LOGIN ===== -->
+  <div id="halLogin">
+    <div class="kartu" style="max-width:420px;margin:3rem auto;text-align:center">
+      <div style="font-size:2.4rem">🔒</div>
+      <h3>Masuk Admin</h3>
+      <p style="color:var(--abu);font-size:.88rem;margin-bottom:1rem">Laporan &amp; Dashboard, Tarik Data, dan Pengaturan hanya untuk admin Dinas.</p>
+      <input type="password" id="pass" placeholder="Password / PIN admin" style="margin-bottom:1rem"
+             onkeydown="if(event.key==='Enter')masuk()">
+      <button class="btn btn-biru" style="width:100%" onclick="masuk()" id="btnMasuk">Masuk</button>
+      <p id="galat" style="color:var(--merah);font-size:.85rem;margin-top:.7rem"></p>
+    </div>
+  </div>
+
+  <!-- ===== PENGATURAN ===== -->
+  <div id="halAtur" style="display:none">
+    <h2 class="judul-hal">⚙️ Pengaturan</h2>
+    <p class="sub-hal">Ambang kategori nilai dan kelompok baseline ranking. Perubahan langsung berlaku di rapor, dashboard, dan ranking.</p>
+    <div id="pesan"></div>
+
+    <div class="kartu">
+      <h3>Kategori Nilai Kepala Sekolah <span class="tag tag-biru">skala Rata Capaian 1–5</span></h3>
+      <div style="overflow-x:auto"><table id="tKS"></table></div>
+    </div>
+    <div class="kartu">
+      <h3>Kategori Nilai Guru <span class="tag tag-biru">persen 0–100</span></h3>
+      <div style="overflow-x:auto"><table id="tGuru"></table></div>
+    </div>
+    <div class="kartu">
+      <h3>Kelompok Baseline Ranking KS <span class="tag tag-biru">Rata Baseline 1–5</span></h3>
+      <p style="font-size:.85rem;color:var(--abu);margin-bottom:.6rem">KS dikelompokkan dulu berdasarkan baseline, lalu dirangking di dalam tiap kelompok.</p>
+      <div style="overflow-x:auto"><table id="tKel"></table></div>
+    </div>
+    <div style="text-align:right;margin-bottom:1.5rem">
+      <button class="btn btn-hijau" id="btnSimpan">💾 Simpan Pengaturan</button>
+    </div>
+
+    <div class="kartu">
+      <h3>Ganti Password Admin</h3>
+      <div class="baris">
+        <div><label>Password baru (min. 6 karakter)</label><input type="password" id="passBaru"></div>
+        <div style="display:flex;align-items:flex-end"><button class="btn btn-kuning" id="btnPass">Ganti Password</button></div>
+      </div>
+    </div>
+  </div>
+</main>
+<div id="notif"></div>
+<footer>© 2026 Dinas Pendidikan Kabupaten Deli Serdang — SIPEKA</footer>
+<script src="js/indikator.js"></script>
+<script src="js/config.js"></script>
+<script>
+let pengaturan = JSON.parse(JSON.stringify(PENGATURAN_DEFAULT));
+
+function notif(p, merah) {
+  const n = $id('notif'); n.textContent = p; n.style.display = 'block';
+  n.style.background = merah ? 'var(--merah)' : 'var(--biru-tua)';
+  setTimeout(() => n.style.display = 'none', 4000);
+}
+
+async function masuk() {
+  const btn = $id('btnMasuk');
+  btn.disabled = true; btn.innerHTML = '<span class="muat"></span> Memeriksa…';
+  try {
+    const r = await apiPost('login', { password: $id('pass').value });
+    Admin.token = r.token;
+    const next = new URLSearchParams(location.search).get('next');
+    if (next && next !== 'admin.html') { location.href = next; return; }
+    tampilkanPengaturan();
+  } catch (e) { $id('galat').textContent = e.message; }
+  btn.disabled = false; btn.textContent = 'Masuk';
+}
+
+async function tampilkanPengaturan() {
+  $id('halLogin').style.display = 'none';
+  $id('halAtur').style.display = '';
+  $id('btnKeluar').style.display = '';
+  try {
+    const j = await apiGet('pengaturan');
+    pengaturan = Object.assign({}, PENGATURAN_DEFAULT, j.pengaturan || {});
+  } catch (e) { $id('pesan').innerHTML = `<div class="info info-kuning">Memuat pengaturan default (offline): ${esc(e.message)}</div>`; }
+  renderTabel();
+}
+
+function renderTabel() {
+  const buatKategori = (el, daftar, satuan) => {
+    let h = `<tr><th>Kategori</th><th>Nilai minimal (${satuan})</th></tr>`;
+    daftar.forEach((k, i) => {
+      h += `<tr><td><input value="${esc(k.label)}" data-l="${i}"></td>
+        <td><input type="number" step="0.1" value="${k.min}" data-m="${i}" ${i === daftar.length - 1 ? 'readonly title="Kategori terakhir selalu 0"' : ''}></td></tr>`;
+    });
+    el.innerHTML = h;
+  };
+  buatKategori($id('tKS'), pengaturan.kategoriKS, 'Rata Capaian');
+  buatKategori($id('tGuru'), pengaturan.kategoriGuru, '%');
+  let h = '<tr><th>Label Kelompok</th><th>Baseline min</th><th>Baseline maks</th></tr>';
+  pengaturan.kelompokBaseline.forEach((k, i) => {
+    h += `<tr><td><input value="${esc(k.label)}" data-kl="${i}"></td>
+      <td><input type="number" step="0.1" value="${k.min}" data-kmin="${i}"></td>
+      <td><input type="number" step="0.1" value="${k.max}" data-kmax="${i}"></td></tr>`;
+  });
+  $id('tKel').innerHTML = h;
+}
+
+function kumpulkan() {
+  const ambil = (tabel, daftar) => {
+    tabel.querySelectorAll('input[data-l]').forEach(inp => daftar[+inp.dataset.l].label = inp.value.trim());
+    tabel.querySelectorAll('input[data-m]').forEach(inp => daftar[+inp.dataset.m].min = parseFloat(inp.value) || 0);
+    daftar.sort((a, b) => b.min - a.min);
+    daftar[daftar.length - 1].min = 0;
+  };
+  ambil($id('tKS'), pengaturan.kategoriKS);
+  ambil($id('tGuru'), pengaturan.kategoriGuru);
+  $id('tKel').querySelectorAll('input[data-kl]').forEach(inp => pengaturan.kelompokBaseline[+inp.dataset.kl].label = inp.value.trim());
+  $id('tKel').querySelectorAll('input[data-kmin]').forEach(inp => pengaturan.kelompokBaseline[+inp.dataset.kmin].min = parseFloat(inp.value) || 0);
+  $id('tKel').querySelectorAll('input[data-kmax]').forEach(inp => pengaturan.kelompokBaseline[+inp.dataset.kmax].max = parseFloat(inp.value) || 0);
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  $id('btnKeluar').onclick = () => Admin.keluar();
+  $id('btnSimpan').onclick = async () => {
+    kumpulkan();
+    const b = $id('btnSimpan');
+    b.disabled = true; b.innerHTML = '<span class="muat"></span> Menyimpan…';
+    try {
+      await apiPost('savepengaturan', { token: Admin.token, pengaturan });
+      renderTabel();
+      notif('✅ Pengaturan tersimpan dan langsung berlaku.');
+    } catch (e) { notif('Gagal: ' + e.message, true); }
+    b.disabled = false; b.innerHTML = '💾 Simpan Pengaturan';
+  };
+  $id('btnPass').onclick = async () => {
+    try {
+      await apiPost('gantipassword', { token: Admin.token, passwordBaru: $id('passBaru').value });
+      $id('passBaru').value = '';
+      notif('✅ Password admin berhasil diganti.');
+    } catch (e) { notif('Gagal: ' + e.message, true); }
+  };
+  if (Admin.aktif) tampilkanPengaturan();
+});
+</script>
+</body>
+</html>

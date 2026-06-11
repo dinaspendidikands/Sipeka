@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Penilaian Kinerja Guru — SIPEKA</title>
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<header>
+  <div class="nav">
+    <a class="brand" href="index.html">
+      <div class="logo">DS</div>
+      <h1>SIPEKA Deli Serdang<small>Penilaian Kinerja Kepala Sekolah &amp; Guru</small></h1>
+    </a>
+    <nav><ul>
+      <li><a href="index.html">Beranda</a></li>
+      <li><a href="form-ks-sd-smp.html">KS SD/SMP</a></li>
+      <li><a href="form-ks-paud.html">KS PAUD</a></li>
+      <li><a href="form-guru.html" class="aktif">Guru</a></li>
+      <li><a href="rapor.html">Rapor</a></li>
+    </ul></nav>
+  </div>
+</header>
+<main>
+  <h2 class="judul-hal">👩‍🏫 Penilaian Kinerja Guru</h2>
+  <p class="sub-hal">Diisi oleh <b>Kepala Sekolah</b> (indikator 4 melibatkan siswa/orang tua/sejawat; indikator 5 oleh pengawas). Checklist <b>Ya = 1</b> / <b>Tidak = 0</b>, nilai otomatis dalam persen.</p>
+  <div id="pesan"></div>
+  <div id="konten"><div class="kartu" style="text-align:center"><span class="muat"></span> Memuat formulir…</div></div>
+</main>
+<div id="notif"></div>
+<footer>© 2026 Dinas Pendidikan Kabupaten Deli Serdang — SIPEKA</footer>
+<script src="js/indikator.js"></script>
+<script src="js/config.js"></script>
+<script>
+(function () {
+  let masterSekolah = [], guruSekolah = [];
+
+  function render() {
+    let html = `
+    <div class="kartu">
+      <h3><span class="no">1</span>Identitas Sekolah & Guru</h3>
+      <div class="baris">
+        <div><label>Email Penilai (Kepala Sekolah)</label><input type="email" id="email" placeholder="nama@sekolah.belajar.id" required></div>
+        <div><label>Kecamatan</label><select id="kecamatan"></select></div>
+        <div><label>Sekolah</label><select id="sekolah"></select></div>
+        <div><label>NPSN</label><input id="npsn" readonly></div>
+        <div><label>Jenjang</label><input id="jenjang" readonly></div>
+      </div>
+      <div class="baris">
+        <div><label>Nama Kepala Sekolah</label><input id="ks" readonly></div>
+        <div><label>HP Kepala Sekolah</label><input id="hpKS" readonly></div>
+        <div><label>Bulan Penilaian</label><select id="bulan">${BULAN_LIST.map(b=>`<option>${b}</option>`).join('')}</select></div>
+      </div>
+      <div class="baris">
+        <div><label>Guru yang Dinilai</label><select id="guru"><option value="">— pilih sekolah dahulu —</option></select></div>
+        <div><label>Nama Guru</label><input id="namaGuru" placeholder="otomatis / ketik manual"></div>
+        <div><label>NIP/NUPTK</label><input id="nip"></div>
+        <div><label>Status</label><select id="status"><option>PNS</option><option>P3K</option><option>P3K PW</option><option>Honorer</option><option>GTY</option></select></div>
+        <div><label>Pangkat/Gol. Ruang</label><input id="pangkat" placeholder="mis. III/b atau IX"></div>
+        <div><label>Mata Pelajaran / Guru Kelas</label><input id="mapel"></div>
+        <div><label>HP Guru</label><input id="hpGuru"></div>
+      </div>
+      <p class="info info-biru" style="margin-top:.6rem">Jika guru belum ada di master data, pilih "— isi manual —" lalu ketik identitas guru.</p>
+    </div>`;
+
+    GURU_KELOMPOK.forEach((g, gi) => {
+      html += `<div class="kartu"><h3><span class="no">${gi + 2}</span>${esc(g.nama)}</h3>
+        <p style="font-size:.8rem;color:var(--abu);margin-bottom:.6rem">Tim penilai: ${esc(g.penilai)}</p>
+        <table><tr><th>Butir Observasi</th><th style="width:130px">Penilaian</th></tr>`;
+      g.butir.forEach((b, bi) => {
+        html += `<tr><td>${esc(b)}</td><td>
+          <div class="skala">
+            <label><input type="radio" name="g${gi}b${bi}" value="1" required> Ya</label>
+            <label><input type="radio" name="g${gi}b${bi}" value="0"> Tidak</label>
+          </div></td></tr>`;
+      });
+      html += `</table>
+        <div style="margin-top:.7rem"><label>Link Bukti Dukung Indikator ${gi + 1} (Google Drive)</label>
+        <input id="link${gi}" type="url" placeholder="https://drive.google.com/..."></div>
+        <p style="margin-top:.4rem;font-size:.85rem;color:var(--abu)">Nilai kelompok: <b id="nilai${gi}">—</b></p>
+      </div>`;
+    });
+
+    html += `<div style="text-align:right">
+      <span id="ringkas" style="margin-right:1rem;color:var(--abu);font-size:.88rem"></span>
+      <button class="btn btn-biru" id="kirim">📤 Kirim Penilaian</button></div>`;
+    $id('konten').innerHTML = html;
+
+    $id('kecamatan').onchange = isiSekolah;
+    $id('sekolah').onchange = pilihSekolah;
+    $id('guru').onchange = pilihGuru;
+    $id('kirim').onclick = kirim;
+    $id('konten').addEventListener('change', hitung);
+  }
+
+  async function muatMaster() {
+    try {
+      const m = await apiGet('master');
+      masterSekolah = m.sekolah;
+      isiSelect($id('kecamatan'), [...new Set(masterSekolah.map(s => s.kecamatan))].sort(), '— pilih kecamatan —');
+      isiSelect($id('sekolah'), [], '— pilih kecamatan dahulu —');
+    } catch (e) {
+      $id('pesan').innerHTML = `<div class="info info-merah">Gagal memuat master data: ${esc(e.message)}</div>`;
+    }
+  }
+  function isiSekolah() {
+    isiSelect($id('sekolah'),
+      masterSekolah.filter(s => s.kecamatan === $id('kecamatan').value).map(s => ({ value: s.npsn, label: s.sekolah })),
+      '— pilih sekolah —');
+    pilihSekolah();
+  }
+  async function pilihSekolah() {
+    const s = masterSekolah.find(x => x.npsn === $id('sekolah').value) || {};
+    ['npsn','jenjang','ks','hpKS'].forEach(k => $id(k).value = s[k] || '');
+    isiSelect($id('guru'), [{ value: '', label: '— memuat... —' }]);
+    guruSekolah = [];
+    if (s.npsn) {
+      try { guruSekolah = (await apiGet('gurusekolah', { npsn: s.npsn })).guru; } catch (e) {}
+    }
+    isiSelect($id('guru'),
+      [{ value: '-1', label: '— isi manual —' }].concat(guruSekolah.map((g, i) => ({ value: i, label: g.nama }))),
+      '— pilih guru —');
+  }
+  function pilihGuru() {
+    const i = $id('guru').value;
+    const g = (i !== '' && i !== '-1') ? guruSekolah[+i] : null;
+    $id('namaGuru').value = g ? g.nama : '';
+    $id('nip').value = g ? g.nip : '';
+    $id('pangkat').value = g ? g.pangkat : '';
+    $id('mapel').value = g ? g.mapel : '';
+    $id('hpGuru').value = g ? g.hp : '';
+    if (g && g.status) $id('status').value = g.status;
+  }
+  function hitung() {
+    let total = 0, semua = true;
+    GURU_KELOMPOK.forEach((g, gi) => {
+      let s = 0, lengkap = true;
+      g.butir.forEach((b, bi) => {
+        const v = document.querySelector(`input[name="g${gi}b${bi}"]:checked`);
+        if (!v) lengkap = false; else s += +v.value;
+      });
+      const n = lengkap ? Math.round(s / g.butir.length * 100) : null;
+      $id('nilai' + gi).textContent = n === null ? '—' : n + ' %';
+      if (n === null) semua = false; else total += n;
+    });
+    $id('ringkas').textContent = semua ? `Rata keseluruhan: ${Math.round(total / GURU_KELOMPOK.length)} %` : '';
+  }
+
+  async function kirim() {
+    if (!$id('email').value || !$id('sekolah').value) return tampilNotif('Lengkapi identitas sekolah', true);
+    if (!$id('namaGuru').value.trim()) return tampilNotif('Nama guru wajib diisi', true);
+    const nilai = [], links = [];
+    for (let gi = 0; gi < GURU_KELOMPOK.length; gi++) {
+      const arr = [];
+      for (let bi = 0; bi < GURU_KELOMPOK[gi].butir.length; bi++) {
+        const v = document.querySelector(`input[name="g${gi}b${bi}"]:checked`);
+        if (!v) return tampilNotif(`Kelompok ${gi + 1}: masih ada butir yang belum dinilai`, true);
+        arr.push(+v.value);
+      }
+      nilai.push(arr);
+      links.push($id('link' + gi).value.trim() || '-');
+    }
+    const s = masterSekolah.find(x => x.npsn === $id('sekolah').value);
+    const data = {
+      ident: {
+        email: $id('email').value.trim(), kecamatan: s.kecamatan, jenjang: s.jenjang, npsn: s.npsn,
+        sekolah: s.sekolah, ks: s.ks, hpKS: s.hpKS,
+        nama: $id('namaGuru').value.trim(), status: $id('status').value, pangkat: $id('pangkat').value.trim(),
+        nip: $id('nip').value.trim(), mapel: $id('mapel').value.trim(), hp: $id('hpGuru').value.trim(),
+        bulan: $id('bulan').value
+      }, nilai, links
+    };
+    const btn = $id('kirim');
+    btn.disabled = true; btn.innerHTML = '<span class="muat"></span> Mengirim...';
+    try {
+      const r = await apiPost('submitguru', { data });
+      $id('konten').innerHTML = `<div class="kartu" style="text-align:center;padding:3rem">
+        <div style="font-size:3rem">✅</div><h3>Penilaian guru berhasil disimpan</h3>
+        <p style="color:var(--abu)">${esc(data.ident.nama)} — ${esc(data.ident.sekolah)}<br>
+        Rata keseluruhan: <b>${r.rataKeseluruhan}%</b></p>
+        <p style="margin-top:1.2rem">
+          <a class="btn btn-biru" href="form-guru.html">Nilai Guru Lain</a>
+          <a class="btn btn-abu" href="rapor.html">Cetak Rapor</a></p></div>`;
+      scrollTo(0, 0);
+    } catch (e) {
+      tampilNotif('Gagal mengirim: ' + e.message, true);
+      btn.disabled = false; btn.innerHTML = '📤 Kirim Penilaian';
+    }
+  }
+
+  window.tampilNotif = function (pesan, merah) {
+    const n = $id('notif');
+    n.textContent = pesan; n.style.display = 'block';
+    n.style.background = merah ? 'var(--merah)' : 'var(--biru-tua)';
+    setTimeout(() => n.style.display = 'none', 4500);
+  };
+
+  render();
+  muatMaster();
+})();
+</script>
+</body>
+</html>

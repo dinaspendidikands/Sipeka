@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard Laporan — SIPEKA</title>
+<link rel="stylesheet" href="css/app.css">
+<style>
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:1.2rem}
+  @media(max-width:800px){.grid2{grid-template-columns:1fr}}
+  .topbot{display:flex;gap:1rem;flex-wrap:wrap}
+  .topbot .kotak{flex:1;min-width:240px;border-radius:10px;padding:1rem}
+  .kotak-hijau{background:#e6f5ee;border-left:5px solid var(--hijau)}
+  .kotak-merah{background:#fde8e7;border-left:5px solid var(--merah)}
+  .tab{display:flex;gap:.4rem;margin-bottom:1rem;flex-wrap:wrap}
+  .tab button{padding:.5rem 1.1rem;border:none;border-radius:999px;background:#e4e9ef;font-weight:700;cursor:pointer}
+  .tab button.aktif{background:var(--biru);color:#fff}
+  canvas{max-height:320px}
+</style>
+</head>
+<body>
+<header>
+  <div class="nav">
+    <a class="brand" href="index.html">
+      <div class="logo">DS</div>
+      <h1>SIPEKA Deli Serdang<small>Dashboard Laporan — Khusus Admin</small></h1>
+    </a>
+    <nav><ul>
+      <li><a href="index.html">Beranda</a></li>
+      <li><a href="dashboard.html" class="aktif">Dashboard</a></li>
+      <li><a href="admin.html">Pengaturan</a></li>
+      <li><a href="#" onclick="Admin.keluar()">Keluar</a></li>
+    </ul></nav>
+  </div>
+</header>
+<main>
+  <h2 class="judul-hal">📊 Laporan &amp; Dashboard</h2>
+  <p class="sub-hal">Chart kinerja, nilai tertinggi &amp; terendah, dan ranking kepala sekolah per kelompok baseline.</p>
+  <div id="pesan"></div>
+
+  <div class="kartu tanpa-cetak">
+    <div style="display:flex;gap:.6rem;flex-wrap:wrap;align-items:center">
+      <button class="btn btn-hijau" id="btnTarik">📥 Tarik Data (Offline)</button>
+      <button class="btn btn-abu" id="btnCsvKS">⬇ CSV Ringkasan KS</button>
+      <button class="btn btn-abu" id="btnCsvGuru">⬇ CSV Ringkasan Guru</button>
+      <span id="infoSnapshot" style="font-size:.82rem;color:var(--abu)"></span>
+    </div>
+  </div>
+
+  <div class="tab">
+    <button id="tabKS" class="aktif">Kepala Sekolah</button>
+    <button id="tabGuru">Guru</button>
+  </div>
+
+  <div class="kartu">
+    <div class="baris">
+      <div id="fJenisW"><label>Jenis</label><select id="fJenis">
+        <option value="">Semua KS</option><option value="sdsmp">SD &amp; SMP</option><option value="paud">PAUD/TK</option></select></div>
+      <div><label>Kecamatan</label><select id="fKec"></select></div>
+      <div><label>Bulan</label><select id="fBulan"></select></div>
+      <div style="display:flex;align-items:flex-end"><button class="btn btn-biru" id="terapkan">Terapkan</button></div>
+    </div>
+  </div>
+
+  <div class="topbot" id="topbot"></div>
+  <div class="grid2" style="margin-top:1.2rem">
+    <div class="kartu"><h3 id="judulC1"></h3><canvas id="c1"></canvas></div>
+    <div class="kartu"><h3 id="judulC2"></h3><canvas id="c2"></canvas></div>
+  </div>
+  <div class="kartu"><h3 id="judulC3"></h3><canvas id="c3"></canvas></div>
+
+  <div class="kartu">
+    <h3 id="judulRank"></h3>
+    <div class="baris" style="margin-bottom:.6rem">
+      <div id="wKel"><label>Kelompok Baseline</label><select id="fKelompok"></select></div>
+      <div><label>Cari nama / sekolah</label><input id="cari" placeholder="ketik untuk mencari…"></div>
+    </div>
+    <div style="overflow-x:auto" id="tabelRank"></div>
+  </div>
+</main>
+<div id="notif"></div>
+<footer>© 2026 Dinas Pendidikan Kabupaten Deli Serdang — SIPEKA</footer>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="js/indikator.js"></script>
+<script src="js/config.js"></script>
+<script>
+(function () {
+  if (!Admin.wajib()) return;
+  let data = null, mode = 'ks', charts = [];
+  let pengaturan = PENGATURAN_DEFAULT;
+
+  function notif(p, merah) {
+    const n = $id('notif'); n.textContent = p; n.style.display = 'block';
+    n.style.background = merah ? 'var(--merah)' : 'var(--biru-tua)';
+    setTimeout(() => n.style.display = 'none', 4000);
+  }
+
+  async function muat() {
+    try {
+      data = await apiGet('laporan', { token: Admin.token });
+    } catch (e) {
+      const s = await Snapshot.muat().catch(() => null);
+      if (s) { data = s; $id('pesan').innerHTML = '<div class="info info-kuning">📶 Mode offline — menampilkan snapshot tarik data terakhir.</div>'; }
+      else { $id('pesan').innerHTML = `<div class="info info-merah">${esc(e.message)} — dan belum ada snapshot offline.</div>`; return; }
+    }
+    pengaturan = Object.assign({}, PENGATURAN_DEFAULT, data.pengaturan || {});
+    isiFilter(); refresh();
+    const s = await Snapshot.muat().catch(() => null);
+    if (s) $id('infoSnapshot').textContent = 'Snapshot offline terakhir: ' + new Date(s._waktu).toLocaleString('id-ID');
+  }
+
+  function isiFilter() {
+    const sumberKec = mode === 'ks' ? data.ks.map(r => r.kecamatan) : data.guru.map(r => r.kecamatan);
+    isiSelect($id('fKec'), [...new Set(sumberKec)].sort(), 'Semua kecamatan');
+    const bulanAda = [...new Set((mode === 'ks' ? data.ks : data.guru).map(r => r.bulan))];
+    isiSelect($id('fBulan'), BULAN_LIST.filter(b => bulanAda.includes(b)), 'Semua bulan');
+    isiSelect($id('fKelompok'), pengaturan.kelompokBaseline.map(k => k.label), 'Semua kelompok');
+    $id('fJenisW').style.display = mode === 'ks' ? '' : 'none';
+    $id('wKel').style.display = mode === 'ks' ? '' : 'none';
+  }
+
+  function dataTersaring() {
+    const kec = $id('fKec').value, bln = $id('fBulan').value, jns = $id('fJenis').value;
+    let rows = mode === 'ks' ? data.ks : data.guru;
+    if (kec) rows = rows.filter(r => r.kecamatan === kec);
+    if (bln) rows = rows.filter(r => r.bulan === bln);
+    if (mode === 'ks' && jns) rows = rows.filter(r => r.jenis === jns);
+    // ambil entri terakhir per subjek (npsn / npsn+nama guru)
+    const peta = new Map();
+    rows.forEach(r => peta.set(mode === 'ks' ? r.jenis + r.npsn : r.npsn + '|' + r.nama, r));
+    return [...peta.values()];
+  }
+
+  function hapusCharts() { charts.forEach(c => c.destroy()); charts = []; }
+  function bikinChart(id, cfg) { charts.push(new Chart($id(id), cfg)); }
+  const WARNA = ['#0d4f8b','#1e8e5a','#f5a623','#d64541','#7b5ea7','#1d6db3'];
+
+  function refresh() {
+    hapusCharts();
+    const rows = dataTersaring();
+    mode === 'ks' ? tampilKS(rows) : tampilGuru(rows);
+  }
+
+  /* ============ TAMPILAN KS ============ */
+  function tampilKS(rows) {
+    // tertinggi & terendah berdasarkan kinerja
+    const urut = [...rows].sort((a, b) => b.kinerja - a.kinerja);
+    const t = urut[0], r = urut[urut.length - 1];
+    $id('topbot').innerHTML = !rows.length ? '<div class="info info-kuning" style="flex:1">Tidak ada data sesuai filter.</div>' : `
+      <div class="kotak kotak-hijau"><b>🏆 Kinerja Tertinggi</b><br>${esc(t.ks)}<br>
+        <small>${esc(t.sekolah)} — ${esc(t.kecamatan)}</small><br>Kinerja: <b>${f2(t.kinerja)}</b> (Capaian ${f2(t.rataC)})</div>
+      <div class="kotak kotak-merah"><b>⚠ Kinerja Terendah</b><br>${esc(r.ks)}<br>
+        <small>${esc(r.sekolah)} — ${esc(r.kecamatan)}</small><br>Kinerja: <b>${f2(r.kinerja)}</b> (Capaian ${f2(r.rataC)})</div>`;
+
+    // chart 1: distribusi kategori capaian
+    $id('judulC1').textContent = 'Distribusi Kategori (Rata Capaian)';
+    const kat = pengaturan.kategoriKS.map(k => k.label);
+    const distribusi = kat.map(l => rows.filter(x => kategoriDari(x.rataC, pengaturan.kategoriKS) === l).length);
+    bikinChart('c1', { type: 'doughnut', data: { labels: kat, datasets: [{ data: distribusi, backgroundColor: WARNA }] } });
+
+    // chart 2: rata kinerja per kecamatan
+    $id('judulC2').textContent = 'Rata-rata Kinerja per Kecamatan';
+    const kecs = [...new Set(rows.map(x => x.kecamatan))].sort();
+    const rataKec = kecs.map(k => { const d = rows.filter(x => x.kecamatan === k); return d.reduce((a, b) => a + b.kinerja, 0) / d.length; });
+    bikinChart('c2', { type: 'bar', data: { labels: kecs, datasets: [{ label: 'Kinerja', data: rataKec, backgroundColor: '#0d4f8b' }] },
+      options: { indexAxis: 'y', plugins: { legend: { display: false } } } });
+
+    // chart 3: tren per bulan (pakai semua bulan, abaikan filter bulan)
+    $id('judulC3').textContent = 'Tren Rata Capaian & Baseline per Bulan';
+    const semua = (mode === 'ks' ? data.ks : []).filter(x => (!$id('fKec').value || x.kecamatan === $id('fKec').value) && (!$id('fJenis').value || x.jenis === $id('fJenis').value));
+    const bln = BULAN_LIST.filter(b => semua.some(x => x.bulan === b));
+    const seri = k => bln.map(b => { const d = semua.filter(x => x.bulan === b); return d.length ? d.reduce((a, c) => a + c[k], 0) / d.length : null; });
+    bikinChart('c3', { type: 'line', data: { labels: bln, datasets: [
+      { label: 'Rata Baseline', data: seri('rataB'), borderColor: '#f5a623', tension: .3 },
+      { label: 'Rata Capaian', data: seri('rataC'), borderColor: '#1e8e5a', tension: .3 }] } });
+
+    tabelRankingKS(rows);
+  }
+
+  function tabelRankingKS(rows) {
+    $id('judulRank').textContent = '🏅 Ranking Kepala Sekolah per Kelompok Baseline';
+    const cari = $id('cari').value.toLowerCase();
+    const pilihKel = $id('fKelompok').value;
+    let html = '';
+    pengaturan.kelompokBaseline.forEach(kel => {
+      if (pilihKel && kel.label !== pilihKel) return;
+      let anggota = rows.filter(x => x.rataB >= kel.min && x.rataB <= kel.max)
+        .sort((a, b) => b.kinerja - a.kinerja);
+      if (cari) anggota = anggota.filter(x => (x.ks + x.sekolah).toLowerCase().includes(cari));
+      html += `<h3 style="margin:1rem 0 .4rem">${esc(kel.label)} <span class="tag tag-biru">${anggota.length} KS</span></h3>`;
+      if (!anggota.length) { html += '<p style="color:var(--abu);font-size:.85rem">Tidak ada data.</p>'; return; }
+      html += `<table><tr><th>Rank</th><th>Kepala Sekolah</th><th>Sekolah</th><th>Kecamatan</th><th>Jenjang</th>
+        <th>Baseline</th><th>Capaian</th><th>Kinerja</th><th>Kategori</th></tr>`;
+      anggota.forEach((x, i) => {
+        const tanda = i === 0 ? ' 🏆' : (i === anggota.length - 1 && anggota.length > 1 ? ' 🔻' : '');
+        html += `<tr><td>${i + 1}${tanda}</td><td>${esc(x.ks)}</td><td>${esc(x.sekolah)}</td><td>${esc(x.kecamatan)}</td>
+          <td>${esc(x.jenjang)}</td><td>${f2(x.rataB)}</td><td>${f2(x.rataC)}</td><td><b>${f2(x.kinerja)}</b></td>
+          <td>${esc(kategoriDari(x.rataC, pengaturan.kategoriKS))}</td></tr>`;
+      });
+      html += '</table>';
+    });
+    $id('tabelRank').innerHTML = html;
+  }
+
+  /* ============ TAMPILAN GURU ============ */
+  function tampilGuru(rows) {
+    const urut = [...rows].sort((a, b) => b.rata - a.rata);
+    const t = urut[0], r = urut[urut.length - 1];
+    $id('topbot').innerHTML = !rows.length ? '<div class="info info-kuning" style="flex:1">Tidak ada data sesuai filter.</div>' : `
+      <div class="kotak kotak-hijau"><b>🏆 Nilai Tertinggi</b><br>${esc(t.nama)}<br>
+        <small>${esc(t.sekolah)} — ${esc(t.kecamatan)}</small><br>Rata: <b>${f2(t.rata)}%</b></div>
+      <div class="kotak kotak-merah"><b>⚠ Nilai Terendah</b><br>${esc(r.nama)}<br>
+        <small>${esc(r.sekolah)} — ${esc(r.kecamatan)}</small><br>Rata: <b>${f2(r.rata)}%</b></div>`;
+
+    $id('judulC1').textContent = 'Distribusi Kategori Guru';
+    const kat = pengaturan.kategoriGuru.map(k => k.label);
+    bikinChart('c1', { type: 'doughnut', data: { labels: kat,
+      datasets: [{ data: kat.map(l => rows.filter(x => kategoriDari(x.rata, pengaturan.kategoriGuru) === l).length), backgroundColor: WARNA }] } });
+
+    $id('judulC2').textContent = 'Rata-rata per Indikator (%)';
+    bikinChart('c2', { type: 'bar', data: {
+      labels: GURU_KELOMPOK.map(g => g.nama.split(' ')[0] + '…'),
+      datasets: [{ label: '%', data: GURU_KELOMPOK.map((g, i) => rows.length ? rows.reduce((a, x) => a + (x.nilai[i] || 0), 0) / rows.length : 0), backgroundColor: '#1e8e5a' }] },
+      options: { plugins: { legend: { display: false } } } });
+
+    $id('judulC3').textContent = 'Rata-rata Nilai Guru per Kecamatan (%)';
+    const kecs = [...new Set(rows.map(x => x.kecamatan))].sort();
+    bikinChart('c3', { type: 'bar', data: { labels: kecs,
+      datasets: [{ label: '%', data: kecs.map(k => { const d = rows.filter(x => x.kecamatan === k); return d.reduce((a, b) => a + b.rata, 0) / d.length; }), backgroundColor: '#0d4f8b' }] },
+      options: { plugins: { legend: { display: false } } } });
+
+    // ranking guru
+    $id('judulRank').textContent = '🏅 Ranking Guru (Rata Keseluruhan %)';
+    const cari = $id('cari').value.toLowerCase();
+    let daftar = urut;
+    if (cari) daftar = daftar.filter(x => (x.nama + x.sekolah).toLowerCase().includes(cari));
+    const N = 100;
+    let html = `<p style="font-size:.82rem;color:var(--abu)">Menampilkan ${Math.min(N, daftar.length)} dari ${daftar.length} guru — gunakan pencarian untuk mempersempit.</p>
+      <table><tr><th>Rank</th><th>Nama Guru</th><th>Sekolah</th><th>Kecamatan</th><th>Mapel</th><th>Bulan</th><th>Rata (%)</th><th>Kategori</th></tr>`;
+    daftar.slice(0, N).forEach((x, i) => {
+      html += `<tr><td>${i + 1}</td><td>${esc(x.nama)}</td><td>${esc(x.sekolah)}</td><td>${esc(x.kecamatan)}</td>
+        <td>${esc(x.mapel)}</td><td>${esc(x.bulan)}</td><td><b>${f2(x.rata)}</b></td>
+        <td>${esc(kategoriDari(x.rata, pengaturan.kategoriGuru))}</td></tr>`;
+    });
+    $id('tabelRank').innerHTML = html + '</table>';
+  }
+
+  /* ============ TARIK DATA & EKSPOR ============ */
+  $id('btnTarik').onclick = async () => {
+    const b = $id('btnTarik');
+    b.disabled = true; b.innerHTML = '<span class="muat"></span> Menarik data…';
+    try {
+      const lengkap = await apiGet('tarik', { token: Admin.token });
+      await Snapshot.simpan(lengkap);
+      $id('infoSnapshot').textContent = 'Snapshot offline terakhir: ' + new Date().toLocaleString('id-ID');
+      notif('✅ Data berhasil ditarik — dashboard & rapor kini bisa dibuka offline.');
+    } catch (e) { notif('Gagal menarik data: ' + e.message, true); }
+    b.disabled = false; b.innerHTML = '📥 Tarik Data (Offline)';
+  };
+  $id('btnCsvKS').onclick = () => {
+    if (!data) return;
+    unduhTeks('ringkasan-kepala-sekolah.csv', keCSV(
+      ['Jenis','NPSN','Sekolah','Kecamatan','Jenjang','Kepala Sekolah','Pengawas','Periode','Bulan','Minggu','Rata Baseline','Rata Capaian','Kinerja'],
+      data.ks.map(x => [x.jenis, x.npsn, x.sekolah, x.kecamatan, x.jenjang, x.ks, x.pengawas, x.periode, x.bulan, x.minggu, x.rataB, x.rataC, x.kinerja])));
+  };
+  $id('btnCsvGuru').onclick = () => {
+    if (!data) return;
+    unduhTeks('ringkasan-guru.csv', keCSV(
+      ['NPSN','Sekolah','Kecamatan','Jenjang','Nama Guru','NIP','Mapel','Bulan','N1','N2','N3','N4','N5','Rata'],
+      data.guru.map(x => [x.npsn, x.sekolah, x.kecamatan, x.jenjang, x.nama, x.nip, x.mapel, x.bulan, ...x.nilai, x.rata])));
+  };
+
+  $id('tabKS').onclick = () => { mode = 'ks'; $id('tabKS').classList.add('aktif'); $id('tabGuru').classList.remove('aktif'); isiFilter(); refresh(); };
+  $id('tabGuru').onclick = () => { mode = 'guru'; $id('tabGuru').classList.add('aktif'); $id('tabKS').classList.remove('aktif'); isiFilter(); refresh(); };
+  $id('terapkan').onclick = refresh;
+  $id('cari').oninput = () => { mode === 'ks' ? tabelRankingKS(dataTersaring()) : refresh(); };
+  $id('fKelompok').onchange = () => tabelRankingKS(dataTersaring());
+
+  muat();
+})();
+</script>
+</body>
+</html>
