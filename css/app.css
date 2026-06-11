@@ -87,7 +87,15 @@ footer{background:var(--biru-tua);color:#bcd3e8;text-align:center;padding:1rem;f
   @page{size:A4;margin:14mm 12mm}
 }
 .lembar-rapor{background:#fff;border-radius:6px;box-shadow:var(--shadow);padding:2rem 2.2rem;max-width:880px;margin:0 auto 1.4rem;font-size:.86rem}
-@media print{.lembar-rapor{page-break-after:always}.lembar-rapor:last-child{page-break-after:auto}}
+@media print{
+  /* setiap rapor berikutnya SELALU mulai di halaman baru (judul/kop di puncak halaman) */
+  .lembar-rapor ~ .lembar-rapor{break-before:page;page-break-before:always}
+  .lembar-rapor{margin:0 auto;border-radius:0}
+  /* baris tabel & blok tanda tangan tidak terpotong di tengah */
+  .lembar-rapor table tr{break-inside:avoid;page-break-inside:avoid}
+  .lembar-rapor .kop{break-after:avoid;page-break-after:avoid}
+  .ttd{break-inside:avoid;page-break-inside:avoid}
+}
 .lembar-rapor .kop{text-align:center;border-bottom:3px double #222;padding-bottom:.6rem;margin-bottom:1rem}
 .lembar-rapor .kop h2{font-size:1.15rem;letter-spacing:.5px}
 .lembar-rapor .kop p{font-size:.85rem}
