@@ -23,7 +23,8 @@
         <div><label>Pilih dari Master — Sekolah</label><select id="sekolah"></select></div>
       </div>
       <p class="info info-biru" style="margin:.6rem 0">Memilih sekolah akan mengisi kolom di bawah secara otomatis.
-        Jika ada data yang keliru (NPSN, nama sekolah, kepala sekolah, pengawas, no. HP, dll), <b>perbaiki langsung di kolomnya</b> — data yang dikirim adalah isi kolom di bawah.</p>
+        Jika ada data yang keliru (NPSN, nama sekolah, kepala sekolah, pengawas, no. HP, dll), <b>perbaiki langsung di kolomnya</b> — data yang dikirim adalah isi kolom di bawah.
+        Sekolah tidak ada di daftar? Pilih <b>"✏️ Ketik manual"</b> lalu isi identitas sendiri.</p>
       <div class="baris">
         <div><label>NPSN</label><input id="npsn" placeholder="NPSN sekolah"></div>
         <div><label>Nama Sekolah</label><input id="namaSekolah" placeholder="nama sekolah"></div>
@@ -108,17 +109,36 @@
       const isSDSMP = j === 'SD' || j === 'SMP';
       return paud ? !isSDSMP : isSDSMP;
     });
-    isiSelect($id('kecamatan'), [...new Set(masterSekolah.map(s => s.kecamatan))].sort(), '— pilih kecamatan —');
-    isiSelect($id('sekolah'), [], '— pilih kecamatan dahulu —');
+    const MANUAL = { value: '__manual', label: '✏️ Ketik manual (tidak ada di daftar)' };
+    isiSelect($id('kecamatan'),
+      [MANUAL].concat([...new Set(masterSekolah.map(s => s.kecamatan))].sort().map(k => ({ value: k, label: k }))),
+      '— pilih kecamatan —');
+    isiSelect($id('sekolah'), [MANUAL], '— pilih kecamatan dahulu —');
     await pulihkanDraft();
     tampilAntrean();
   }
   function isiSekolah() {
+    const MANUAL = { value: '__manual', label: '✏️ Ketik manual (tidak ada di daftar)' };
+    if ($id('kecamatan').value === '__manual') {
+      isiSelect($id('sekolah'), [MANUAL], null);
+      $id('sekolah').value = '__manual';
+      modeManual();
+      return;
+    }
     isiSelect($id('sekolah'),
-      masterSekolah.filter(s => s.kecamatan === $id('kecamatan').value).map(s => ({ value: s.npsn, label: s.sekolah })),
+      [MANUAL].concat(masterSekolah.filter(s => s.kecamatan === $id('kecamatan').value)
+        .map(s => ({ value: s.npsn, label: s.sekolah }))),
       '— pilih sekolah —');
   }
+  function modeManual() {
+    // kosongkan kolom identitas agar diketik manual, arahkan kursor ke NPSN
+    ['npsn','namaSekolah','jenjang','namaKecamatan','ks','hpKS','pengawas','hpPengawas'].forEach(k => $id(k).value = '');
+    if ($id('kecamatan').value && $id('kecamatan').value !== '__manual') $id('namaKecamatan').value = $id('kecamatan').value;
+    tampilNotif('Mode ketik manual: isi NPSN, nama sekolah, dan identitas lainnya pada kolom di bawah.');
+    $id('npsn').focus();
+  }
   function isiIdentitas() {
+    if ($id('sekolah').value === '__manual') { modeManual(); return; }
     const s = masterSekolah.find(x => x.npsn === $id('sekolah').value);
     if (!s) return;
     $id('npsn').value = s.npsn; $id('namaSekolah').value = s.sekolah;
