@@ -24,19 +24,26 @@
 <main>
   <div class="tanpa-cetak">
     <h2 class="judul-hal">🖨 Cetak Rapor</h2>
-    <p class="sub-hal">Rapor bulanan dengan link dokumentasi yang dapat diklik dan QR code. Jika data sudah ditarik admin, rapor tetap bisa dibuka offline.</p>
+    <p class="sub-hal">Cetak satu rapor, atau cetak banyak sekaligus: rapor kepala sekolah per <b>pengawas</b>, rapor guru per <b>kepala sekolah</b>. Satu rapor = satu halaman A4.</p>
     <div id="pesan"></div>
     <div class="kartu">
       <div class="baris">
+        <div><label>Mode Cetak</label>
+          <select id="modeCetak">
+            <option value="satu">Cetak Satu Rapor</option>
+            <option value="banyak">Cetak Banyak Sekaligus</option>
+          </select></div>
         <div><label>Jenis Rapor</label>
           <select id="jenis">
             <option value="sdsmp">Kepala Sekolah SD &amp; SMP</option>
             <option value="paud">Kepala Sekolah PAUD/TK</option>
             <option value="guru">Guru</option>
           </select></div>
-        <div><label>Kecamatan</label><select id="kecamatan"></select></div>
-        <div><label>Sekolah</label><select id="sekolah"></select></div>
+        <div id="wKecamatan"><label>Kecamatan</label><select id="kecamatan"></select></div>
+        <div id="wSekolah"><label>Sekolah</label><select id="sekolah"></select></div>
         <div id="wadahGuru" style="display:none"><label>Guru</label><select id="guru"></select></div>
+        <div id="wPengawas" style="display:none"><label>Nama Pengawas</label><select id="pengawas"></select></div>
+        <div id="wKS" style="display:none"><label>Nama Kepala Sekolah</label><select id="namaKS"></select></div>
         <div><label>Bulan</label><select id="bulan"></select></div>
         <div style="display:flex;align-items:flex-end;gap:.5rem">
           <button class="btn btn-biru" id="tampil">Tampilkan</button>
@@ -74,12 +81,14 @@
       }
     }
     pengaturan = await getPengaturan();
-    $id('jenis').onchange = isiKecamatan;
+    $id('modeCetak').onchange = aturTampilan;
+    $id('jenis').onchange = aturTampilan;
     $id('kecamatan').onchange = isiSekolahSel;
     $id('sekolah').onchange = isiGuruSel;
     $id('tampil').onclick = tampilkan;
-    isiKecamatan();
+    aturTampilan();
   }
+
   function sekolahTersaring() {
     const j = $id('jenis').value;
     return masterSekolah.filter(s => {
@@ -88,10 +97,26 @@
       return j === 'paud' ? !isSDSMP : (j === 'sdsmp' ? isSDSMP : true);
     });
   }
-  function isiKecamatan() {
-    isiSelect($id('kecamatan'), [...new Set(sekolahTersaring().map(s => s.kecamatan))].sort(), '— pilih kecamatan —');
-    isiSelect($id('sekolah'), [], '—');
-    $id('wadahGuru').style.display = $id('jenis').value === 'guru' ? '' : 'none';
+  /* atur kolom pilihan sesuai mode cetak & jenis rapor */
+  function aturTampilan() {
+    const banyak = $id('modeCetak').value === 'banyak';
+    const guru = $id('jenis').value === 'guru';
+    $id('wKecamatan').style.display = banyak ? 'none' : '';
+    $id('wSekolah').style.display = banyak ? 'none' : '';
+    $id('wadahGuru').style.display = (!banyak && guru) ? '' : 'none';
+    $id('wPengawas').style.display = (banyak && !guru) ? '' : 'none';
+    $id('wKS').style.display = (banyak && guru) ? '' : 'none';
+    if (banyak) {
+      if (guru) {
+        isiSelect($id('namaKS'), [...new Set(masterSekolah.map(s => s.ks).filter(Boolean))].sort(), '— pilih kepala sekolah —');
+      } else {
+        isiSelect($id('pengawas'), [...new Set(sekolahTersaring().map(s => s.pengawas).filter(Boolean))].sort(), '— pilih pengawas —');
+      }
+    } else {
+      isiSelect($id('kecamatan'), [...new Set(sekolahTersaring().map(s => s.kecamatan))].sort(), '— pilih kecamatan —');
+      isiSelect($id('sekolah'), [], '—');
+    }
+    $id('hasil').innerHTML = ''; $id('cetak').style.display = 'none';
   }
   function isiSekolahSel() {
     isiSelect($id('sekolah'),
@@ -100,7 +125,7 @@
     isiGuruSel();
   }
   async function isiGuruSel() {
-    if ($id('jenis').value !== 'guru') return;
+    if ($id('jenis').value !== 'guru' || $id('modeCetak').value === 'banyak') return;
     const npsn = $id('sekolah').value;
     let guru = [];
     if (npsn) {
@@ -108,32 +133,59 @@
       catch (e) {
         if (snapshot && snapshot.detail) {
           const L = layoutGuru();
-          guru = [...new Set(snapshot.detail.guru.filter(r => String(r[L.id.npsn]) === npsn).map(r => r[L.id.nama]))];
+          guru = [...new Set(snapshot.detail.guru.filter(r => String(r[L.id.npsn]).replace(/^'/,'') === npsn).map(r => r[L.id.nama]))];
         }
       }
     }
     isiSelect($id('guru'), guru, '— pilih guru —');
   }
 
-  /* kembalikan SEMUA pengisian yang cocok (bisa lebih dari satu dalam sebulan) */
-  async function ambilData() {
+  const sama = (a, b) => String(a || '').trim().toLowerCase() === String(b || '').trim().toLowerCase();
+
+  /* ---------- ambil data: cetak satu ---------- */
+  async function ambilSatu() {
     const p = { jenis: $id('jenis').value, npsn: $id('sekolah').value, bulan: $id('bulan').value };
     if (p.jenis === 'guru') p.nama = $id('guru').value;
     try {
       const r = await apiGet('rapor', p);
       return r.ditemukan ? (r.rows || [r.row]) : [];
     } catch (e) {
-      // offline: cari di snapshot
       if (!snapshot || !snapshot.detail) throw new Error('Offline dan snapshot tidak tersedia');
       $id('modeOffline').style.display = 'block';
       if (p.jenis === 'guru') {
         const L = layoutGuru();
         return snapshot.detail.guru.filter(r => String(r[L.id.npsn]).replace(/^'/,'') === p.npsn &&
-          String(r[L.id.bulan]) === p.bulan && String(r[L.id.nama]).trim() === p.nama.trim());
+          String(r[L.id.bulan]) === p.bulan && sama(r[L.id.nama], p.nama));
       }
       const L = layoutKS(p.jenis);
       const rows = p.jenis === 'paud' ? snapshot.detail.paud : snapshot.detail.sdsmp;
       return rows.filter(r => String(r[L.id.npsn]).replace(/^'/,'') === p.npsn && String(r[L.id.bulan]) === p.bulan);
+    }
+  }
+  /* ---------- ambil data: cetak banyak ---------- */
+  async function ambilBanyak() {
+    const jenis = $id('jenis').value, bulan = $id('bulan').value;
+    const p = jenis === 'guru'
+      ? { jenis, bulan, ks: $id('namaKS').value }
+      : { jenis, bulan, pengawas: $id('pengawas').value };
+    try {
+      const r = await apiGet('raporbanyak', p);
+      return r.rows || [];
+    } catch (e) {
+      if (!snapshot || !snapshot.detail) throw new Error('Offline dan snapshot tidak tersedia');
+      $id('modeOffline').style.display = 'block';
+      let rows;
+      if (jenis === 'guru') {
+        const L = layoutGuru();
+        rows = snapshot.detail.guru.filter(r => sama(r[L.id.ks], p.ks) && String(r[L.id.bulan]) === bulan);
+        rows.sort((a, b) => String(a[L.id.nama]).localeCompare(String(b[L.id.nama])) || String(a[0]).localeCompare(String(b[0])));
+      } else {
+        const L = layoutKS(jenis);
+        rows = (jenis === 'paud' ? snapshot.detail.paud : snapshot.detail.sdsmp)
+          .filter(r => sama(r[L.id.pengawas], p.pengawas) && String(r[L.id.bulan]) === bulan);
+        rows.sort((a, b) => String(a[L.id.sekolah]).localeCompare(String(b[L.id.sekolah])) || String(a[0]).localeCompare(String(b[0])));
+      }
+      return rows;
     }
   }
 
@@ -141,7 +193,7 @@
     const d = new Date(v);
     return isNaN(d) ? esc(String(v)) : d.toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' });
   }
-  /* daftar pilihan saat ada >1 pengisian pada bulan yang sama (tidak ikut tercetak) */
+  /* daftar pilihan saat ada >1 pengisian (mode cetak satu) */
   function renderPilihan(rows, terpilih) {
     const jenis = $id('jenis').value;
     let info = '';
@@ -170,40 +222,70 @@
   let daftarRows = [];
   window.pilihPengisian = function (i) {
     const jenis = $id('jenis').value;
-    jenis === 'guru' ? raporGuru(daftarRows[i]) : raporKS(daftarRows[i], jenis);
-    if (daftarRows.length > 1) $id('hasil').insertAdjacentHTML('afterbegin', renderPilihan(daftarRows, i));
+    const r = jenis === 'guru' ? htmlRaporGuru(daftarRows[i], 's_') : htmlRaporKS(daftarRows[i], jenis, 's_');
+    $id('hasil').innerHTML = (daftarRows.length > 1 ? renderPilihan(daftarRows, i) : '') + r.html;
+    pasangQR(r.qr);
     $id('cetak').style.display = '';
   };
 
   async function tampilkan() {
-    if (!$id('sekolah').value) return alert('Pilih sekolah terlebih dahulu');
-    if ($id('jenis').value === 'guru' && !$id('guru').value) return alert('Pilih guru terlebih dahulu');
+    const banyak = $id('modeCetak').value === 'banyak';
+    const jenis = $id('jenis').value;
+    if (banyak) {
+      if (jenis === 'guru' && !$id('namaKS').value) return alert('Pilih nama kepala sekolah terlebih dahulu');
+      if (jenis !== 'guru' && !$id('pengawas').value) return alert('Pilih nama pengawas terlebih dahulu');
+    } else {
+      if (!$id('sekolah').value) return alert('Pilih sekolah terlebih dahulu');
+      if (jenis === 'guru' && !$id('guru').value) return alert('Pilih guru terlebih dahulu');
+    }
     $id('hasil').innerHTML = '<div class="kartu tanpa-cetak" style="text-align:center"><span class="muat"></span> Mengambil data…</div>';
-    try { daftarRows = await ambilData(); }
+    $id('cetak').style.display = 'none';
+    try { daftarRows = banyak ? await ambilBanyak() : await ambilSatu(); }
     catch (e) { $id('hasil').innerHTML = `<div class="info info-merah">${esc(e.message)}</div>`; return; }
     if (!daftarRows.length) {
       $id('hasil').innerHTML = `<div class="info info-kuning">Belum ada penilaian untuk pilihan tersebut pada bulan ${esc($id('bulan').value)}.</div>`;
-      $id('cetak').style.display = 'none';
       return;
     }
-    // satu pengisian → langsung tampil; lebih dari satu → tampilkan terbaru + daftar pilihan
-    pilihPengisian(daftarRows.length > 1 ? daftarRows.length - 1 : 0);
+    banyak ? tampilBanyak() : pilihPengisian(daftarRows.length > 1 ? daftarRows.length - 1 : 0);
   }
 
+  /* ---------- render cetak banyak: 1 rapor = 1 halaman ---------- */
+  function tampilBanyak() {
+    const jenis = $id('jenis').value;
+    const siapa = jenis === 'guru' ? 'Kepala Sekolah: ' + $id('namaKS').value : 'Pengawas: ' + $id('pengawas').value;
+    let html = `<div class="info info-hijau tanpa-cetak" style="max-width:880px;margin:0 auto 1rem">
+      🖨 <b>${daftarRows.length} rapor</b> siap dicetak — ${esc(siapa)} — Bulan ${esc($id('bulan').value)}.
+      Setiap rapor otomatis menjadi satu halaman A4.</div>`;
+    const semuaQR = [];
+    daftarRows.forEach((row, i) => {
+      const r = jenis === 'guru' ? htmlRaporGuru(row, 'b' + i + '_') : htmlRaporKS(row, jenis, 'b' + i + '_');
+      html += r.html;
+      semuaQR.push(...r.qr);
+    });
+    $id('hasil').innerHTML = html;
+    pasangQR(semuaQR);
+    $id('cetak').style.display = '';
+  }
+
+  /* ================= PEMBANGUN LEMBAR RAPOR ================= */
   function bersih(v){ return String(v ?? '').replace(/^'/,''); }
-  /* baris label : nilai — tanda ":" sejajar (kolom label lebar tetap) */
   function barisInfo(label, nilai) {
     return `<tr><td>${esc(label)}</td><td>:</td><td>${esc(nilai ?? '-')}</td></tr>`;
   }
-  function selLink(link, idQR) {
+  function selLink(link) {
     const ok = /^https?:\/\//.test(String(link));
     return ok
       ? `<a href="${esc(link)}" target="_blank" style="font-size:.7rem;word-break:break-all">${esc(String(link).slice(0,42))}…</a>`
       : '<span style="color:#999">-</span>';
   }
+  function pasangQR(daftar) {
+    daftar.forEach(q => {
+      if (/^https?:\/\//.test(q.link)) new QRCode($id(q.id), { text: q.link, width: 52, height: 52, correctLevel: QRCode.CorrectLevel.L });
+    });
+  }
 
-  // ---------- RAPOR KEPALA SEKOLAH ----------
-  function raporKS(row, jenis) {
+  /* ---------- rapor kepala sekolah (pre = awalan id QR unik) ---------- */
+  function htmlRaporKS(row, jenis, pre) {
     const L = layoutKS(jenis);
     const id = L.id;
     const tahun = new Date().getFullYear();
@@ -212,6 +294,7 @@
     L.ind.forEach(x => { rataB += angka(row[x.colB]); rataT += angka(row[x.colT]); rataC += angka(row[x.colC]); });
     rataB /= n; rataT /= n; rataC /= n;
     const kategori = kategoriDari(rataC, pengaturan.kategoriKS);
+    const qr = [];
 
     let html = `<div class="lembar-rapor">
       <div class="kop">
@@ -247,10 +330,13 @@
       html += `<tr><td colspan="8" style="background:#dde7f2;font-weight:700">${esc(g.nama)}</td></tr>`;
       g.indikator.forEach(indk => {
         const x = L.ind[no - 1];
+        const link = String(row[x.colLink] || '');
+        const qid = pre + 'q' + (no - 1);
+        qr.push({ id: qid, link });
         html += `<tr><td>${no}</td><td>${indk.kode}</td><td>${esc(indk.nama)}</td>
           <td style="text-align:center">${esc(row[x.colB])}</td><td style="text-align:center">${esc(row[x.colT])}</td>
           <td style="text-align:center">${esc(row[x.colC])}</td>
-          <td>${selLink(row[x.colLink])}</td><td><div class="qr-kecil" id="qr${no - 1}"></div></td></tr>`;
+          <td>${selLink(link)}</td><td><div class="qr-kecil" id="${qid}"></div></td></tr>`;
         no++;
       });
     });
@@ -267,20 +353,17 @@
         <div class="kolom">${esc(row[id.kecamatan])}, ${new Date().getDate()} ${esc(row[id.bulan])} ${tahun}<br>Yang dinilai,<br>Kepala ${esc(row[id.sekolah])}
           <div class="nama">${esc(row[id.ks])}</div></div>
       </div></div>`;
-    $id('hasil').innerHTML = html;
-    L.ind.forEach((x, i) => {
-      const link = String(row[x.colLink] || '');
-      if (/^https?:\/\//.test(link)) new QRCode($id('qr' + i), { text: link, width: 52, height: 52, correctLevel: QRCode.CorrectLevel.L });
-    });
+    return { html, qr };
   }
 
-  // ---------- RAPOR GURU ----------
-  function raporGuru(row) {
+  /* ---------- rapor guru ---------- */
+  function htmlRaporGuru(row, pre) {
     const L = layoutGuru();
     const id = L.id;
     const tahun = new Date().getFullYear();
     const nilai = L.colRata.map(c => angka(row[c]));
     const rataAll = angka(row[L.colRataAll]);
+    const qr = [];
 
     let html = `<div class="lembar-rapor">
       <div class="kop">
@@ -300,11 +383,14 @@
       <table style="margin-top:.3rem">
         <tr><th style="width:28px">No.</th><th>Observasi</th><th style="width:64px">Nilai (%)</th><th style="width:100px">Kategori</th><th>Tim Penilai</th><th style="width:120px">Bukti Dukung</th><th style="width:60px;text-align:center">QR</th></tr>`;
     L.grup.forEach((g, gi) => {
+      const link = String(row[g.colLink] || '');
+      const qid = pre + 'g' + gi;
+      qr.push({ id: qid, link });
       html += `<tr><td>${gi + 1}</td><td>${esc(g.nama)}</td>
         <td style="text-align:center">${f2(nilai[gi])}</td>
         <td>${esc(kategoriDari(nilai[gi], pengaturan.kategoriGuru))}</td>
         <td style="font-size:.74rem">${esc(g.penilai)}</td>
-        <td>${selLink(row[g.colLink])}</td><td><div class="qr-kecil" id="qrg${gi}"></div></td></tr>`;
+        <td>${selLink(link)}</td><td><div class="qr-kecil" id="${qid}"></div></td></tr>`;
     });
     html += `<tr style="font-weight:700"><td colspan="2">RATA-RATA PENILAIAN KINERJA GURU (%)</td>
         <td style="text-align:center">${f2(rataAll)}</td>
@@ -317,11 +403,7 @@
         <div class="kolom">${esc(row[id.kecamatan])}, ${new Date().getDate()} ${esc(row[id.bulan])} ${tahun}<br>Kepala Sekolah,
           <div class="nama">${esc(row[id.ks])}</div></div>
       </div></div>`;
-    $id('hasil').innerHTML = html;
-    L.grup.forEach((g, gi) => {
-      const link = String(row[g.colLink] || '');
-      if (/^https?:\/\//.test(link)) new QRCode($id('qrg' + gi), { text: link, width: 52, height: 52, correctLevel: QRCode.CorrectLevel.L });
-    });
+    return { html, qr };
   }
 
   init();

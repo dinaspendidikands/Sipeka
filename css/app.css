@@ -86,7 +86,8 @@ footer{background:var(--biru-tua);color:#bcd3e8;text-align:center;padding:1rem;f
   .lembar-rapor{box-shadow:none !important;border:none !important;margin:0 !important}
   @page{size:A4;margin:14mm 12mm}
 }
-.lembar-rapor{background:#fff;border-radius:6px;box-shadow:var(--shadow);padding:2rem 2.2rem;max-width:880px;margin:auto;font-size:.86rem}
+.lembar-rapor{background:#fff;border-radius:6px;box-shadow:var(--shadow);padding:2rem 2.2rem;max-width:880px;margin:0 auto 1.4rem;font-size:.86rem}
+@media print{.lembar-rapor{page-break-after:always}.lembar-rapor:last-child{page-break-after:auto}}
 .lembar-rapor .kop{text-align:center;border-bottom:3px double #222;padding-bottom:.6rem;margin-bottom:1rem}
 .lembar-rapor .kop h2{font-size:1.15rem;letter-spacing:.5px}
 .lembar-rapor .kop p{font-size:.85rem}
