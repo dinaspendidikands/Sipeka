@@ -1,5 +1,5 @@
 /* SIPEKA service worker — cache app shell agar bisa dibuka offline */
-const CACHE = 'sipeka-v1';
+const CACHE = 'sipeka-v2';
 const SHELL = [
   './', 'index.html', 'form-ks-sd-smp.html', 'form-ks-paud.html', 'form-guru.html',
   'rapor.html', 'dashboard.html', 'admin.html',

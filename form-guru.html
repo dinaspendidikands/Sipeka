@@ -34,25 +34,35 @@
 <script>
 (function () {
   let masterSekolah = [], guruSekolah = [];
+  const kunciDraft = 'guru';
 
   function render() {
     let html = `
+    <div id="antrean"></div>
+    <div id="infoDraft"></div>
     <div class="kartu">
-      <h3><span class="no">1</span>Identitas Sekolah & Guru</h3>
+      <h3><span class="no">1</span>Identitas Sekolah & Guru
+        <span class="tag tag-kuning" style="margin-left:.5rem">✏️ semua kolom dapat diperbaiki jika ada kesalahan</span></h3>
       <div class="baris">
         <div><label>Email Penilai (Kepala Sekolah)</label><input type="email" id="email" placeholder="nama@sekolah.belajar.id" required></div>
-        <div><label>Kecamatan</label><select id="kecamatan"></select></div>
-        <div><label>Sekolah</label><select id="sekolah"></select></div>
-        <div><label>NPSN</label><input id="npsn" readonly></div>
-        <div><label>Jenjang</label><input id="jenjang" readonly></div>
-      </div>
-      <div class="baris">
-        <div><label>Nama Kepala Sekolah</label><input id="ks" readonly></div>
-        <div><label>HP Kepala Sekolah</label><input id="hpKS" readonly></div>
+        <div><label>Pilih dari Master — Kecamatan</label><select id="kecamatan"></select></div>
+        <div><label>Pilih dari Master — Sekolah</label><select id="sekolah"></select></div>
         <div><label>Bulan Penilaian</label><select id="bulan">${BULAN_LIST.map(b=>`<option>${b}</option>`).join('')}</select></div>
       </div>
+      <p class="info info-biru" style="margin:.6rem 0">Memilih sekolah/guru akan mengisi kolom di bawah otomatis. Jika ada data yang keliru,
+        <b>perbaiki langsung di kolomnya</b> — data yang dikirim adalah isi kolom di bawah.</p>
       <div class="baris">
-        <div><label>Guru yang Dinilai</label><select id="guru"><option value="">— pilih sekolah dahulu —</option></select></div>
+        <div><label>NPSN</label><input id="npsn"></div>
+        <div><label>Satuan Pendidikan (Nama Sekolah)</label><input id="namaSekolah"></div>
+        <div><label>Jenjang</label><input id="jenjang" placeholder="TK / SD / SMP"></div>
+        <div><label>Kecamatan</label><input id="namaKecamatan"></div>
+      </div>
+      <div class="baris">
+        <div><label>Nama Kepala Sekolah</label><input id="ks"></div>
+        <div><label>Nomor HP Kepala Sekolah</label><input id="hpKS"></div>
+      </div>
+      <div class="baris">
+        <div><label>Guru yang Dinilai (dari master)</label><select id="guru"><option value="">— pilih sekolah dahulu —</option></select></div>
         <div><label>Nama Guru</label><input id="namaGuru" placeholder="otomatis / ketik manual"></div>
         <div><label>NIP/NUPTK</label><input id="nip"></div>
         <div><label>Status</label><select id="status"><option>PNS</option><option>P3K</option><option>P3K PW</option><option>Honorer</option><option>GTY</option></select></div>
@@ -60,7 +70,6 @@
         <div><label>Mata Pelajaran / Guru Kelas</label><input id="mapel"></div>
         <div><label>HP Guru</label><input id="hpGuru"></div>
       </div>
-      <p class="info info-biru" style="margin-top:.6rem">Jika guru belum ada di master data, pilih "— isi manual —" lalu ketik identitas guru.</p>
     </div>`;
 
     GURU_KELOMPOK.forEach((g, gi) => {
@@ -83,6 +92,7 @@
 
     html += `<div style="text-align:right">
       <span id="ringkas" style="margin-right:1rem;color:var(--abu);font-size:.88rem"></span>
+      <button class="btn btn-abu" id="hapusDraft" type="button">🗑 Kosongkan Isian</button>
       <button class="btn btn-biru" id="kirim">📤 Kirim Penilaian</button></div>`;
     $id('konten').innerHTML = html;
 
@@ -90,33 +100,52 @@
     $id('sekolah').onchange = pilihSekolah;
     $id('guru').onchange = pilihGuru;
     $id('kirim').onclick = kirim;
-    $id('konten').addEventListener('change', hitung);
+    $id('hapusDraft').onclick = async () => {
+      if (!confirm('Kosongkan seluruh isian formulir ini?')) return;
+      await Draft.hapus(kunciDraft);
+      location.reload();
+    };
+    const simpanDraft = debounce(async () => {
+      await Draft.simpan(kunciDraft, formKeObjek($id('konten')));
+      $id('infoDraft').innerHTML = `<div class="info info-hijau">💾 Isian tersimpan otomatis di perangkat ini (${new Date().toLocaleTimeString('id-ID')}) — aman walau internet terputus.</div>`;
+    }, 800);
+    $id('konten').addEventListener('change', () => { hitung(); simpanDraft(); });
+    $id('konten').addEventListener('input', simpanDraft);
   }
 
   async function muatMaster() {
     try {
-      const m = await apiGet('master');
-      masterSekolah = m.sekolah;
-      isiSelect($id('kecamatan'), [...new Set(masterSekolah.map(s => s.kecamatan))].sort(), '— pilih kecamatan —');
-      isiSelect($id('sekolah'), [], '— pilih kecamatan dahulu —');
+      masterSekolah = (await apiGet('master')).sekolah;
     } catch (e) {
-      $id('pesan').innerHTML = `<div class="info info-merah">Gagal memuat master data: ${esc(e.message)}</div>`;
+      const s = await Snapshot.muat().catch(() => null);
+      if (s && s.master) {
+        masterSekolah = s.master.sekolah;
+        $id('pesan').innerHTML = '<div class="info info-kuning">📶 Offline — daftar sekolah dimuat dari snapshot. Anda tetap bisa mengisi & mengirim; jika gagal terkirim, isian masuk antrean kirim ulang.</div>';
+      } else {
+        $id('pesan').innerHTML = `<div class="info info-kuning">Tidak dapat memuat master data (${esc(e.message)}).<br>
+          Anda <b>tetap bisa mengisi formulir</b> — ketik identitas sekolah & guru secara manual. Isian tersimpan otomatis dan dapat dikirim ulang saat koneksi pulih.</div>`;
+      }
     }
+    isiSelect($id('kecamatan'), [...new Set(masterSekolah.map(s => s.kecamatan))].sort(), '— pilih kecamatan —');
+    isiSelect($id('sekolah'), [], '— pilih kecamatan dahulu —');
+    await pulihkanDraft();
+    tampilAntrean();
   }
   function isiSekolah() {
     isiSelect($id('sekolah'),
       masterSekolah.filter(s => s.kecamatan === $id('kecamatan').value).map(s => ({ value: s.npsn, label: s.sekolah })),
       '— pilih sekolah —');
-    pilihSekolah();
   }
   async function pilihSekolah() {
-    const s = masterSekolah.find(x => x.npsn === $id('sekolah').value) || {};
-    ['npsn','jenjang','ks','hpKS'].forEach(k => $id(k).value = s[k] || '');
+    const s = masterSekolah.find(x => x.npsn === $id('sekolah').value);
+    if (s) {
+      $id('npsn').value = s.npsn; $id('namaSekolah').value = s.sekolah;
+      $id('jenjang').value = s.jenjang; $id('namaKecamatan').value = s.kecamatan;
+      $id('ks').value = s.ks; $id('hpKS').value = s.hpKS;
+    }
     isiSelect($id('guru'), [{ value: '', label: '— memuat... —' }]);
     guruSekolah = [];
-    if (s.npsn) {
-      try { guruSekolah = (await apiGet('gurusekolah', { npsn: s.npsn })).guru; } catch (e) {}
-    }
+    if (s) { try { guruSekolah = (await apiGet('gurusekolah', { npsn: s.npsn })).guru; } catch (e) {} }
     isiSelect($id('guru'),
       [{ value: '-1', label: '— isi manual —' }].concat(guruSekolah.map((g, i) => ({ value: i, label: g.nama }))),
       '— pilih guru —');
@@ -124,12 +153,10 @@
   function pilihGuru() {
     const i = $id('guru').value;
     const g = (i !== '' && i !== '-1') ? guruSekolah[+i] : null;
-    $id('namaGuru').value = g ? g.nama : '';
-    $id('nip').value = g ? g.nip : '';
-    $id('pangkat').value = g ? g.pangkat : '';
-    $id('mapel').value = g ? g.mapel : '';
-    $id('hpGuru').value = g ? g.hp : '';
-    if (g && g.status) $id('status').value = g.status;
+    if (!g) return;
+    $id('namaGuru').value = g.nama; $id('nip').value = g.nip;
+    $id('pangkat').value = g.pangkat; $id('mapel').value = g.mapel; $id('hpGuru').value = g.hp;
+    if (g.status) $id('status').value = g.status;
   }
   function hitung() {
     let total = 0, semua = true;
@@ -146,8 +173,37 @@
     $id('ringkas').textContent = semua ? `Rata keseluruhan: ${Math.round(total / GURU_KELOMPOK.length)} %` : '';
   }
 
+  async function pulihkanDraft() {
+    const d = await Draft.muat(kunciDraft).catch(() => null);
+    if (!d) return;
+    if (d._f && d._f.kecamatan) { $id('kecamatan').value = d._f.kecamatan; isiSekolah(); }
+    objekKeForm($id('konten'), d);
+    hitung();
+    $id('infoDraft').innerHTML = `<div class="info info-hijau">♻️ Isian sebelumnya dipulihkan otomatis (tersimpan ${new Date(d._waktu).toLocaleString('id-ID')}). Lanjutkan pengisian, atau tekan "Kosongkan Isian" untuk mulai baru.</div>`;
+  }
+
+  // ---------- antrean kirim ulang ----------
+  async function tampilAntrean() {
+    const q = await Outbox.semua();
+    const el = $id('antrean');
+    if (!q.length) { el.innerHTML = ''; return; }
+    el.innerHTML = `<div class="info info-kuning">📨 <b>${q.length} penilaian</b> menunggu di antrean (gagal terkirim sebelumnya).
+      <button class="btn btn-kuning" style="padding:.3rem .9rem;margin-left:.6rem" id="btnKirimUlang">Kirim Ulang Sekarang</button></div>`;
+    $id('btnKirimUlang').onclick = kirimUlang;
+  }
+  async function kirimUlang() {
+    const btn = $id('btnKirimUlang');
+    if (btn) { btn.disabled = true; btn.innerHTML = '<span class="muat"></span> Mengirim…'; }
+    const r = await Outbox.kirimSemua();
+    if (r.terkirim) tampilNotif(`✅ ${r.terkirim} penilaian dari antrean berhasil terkirim.` + (r.gagal ? ` ${r.gagal} masih menunggu.` : ''));
+    else if (r.gagal) tampilNotif('Belum berhasil — antrean akan dicoba lagi saat koneksi pulih.', true);
+    tampilAntrean();
+  }
+  window.addEventListener('online', kirimUlang);
+
   async function kirim() {
-    if (!$id('email').value || !$id('sekolah').value) return tampilNotif('Lengkapi identitas sekolah', true);
+    if (!$id('email').value) return tampilNotif('Email penilai wajib diisi', true);
+    if (!$id('npsn').value || !$id('namaSekolah').value) return tampilNotif('NPSN dan Nama Sekolah wajib diisi (pilih dari master atau ketik manual)', true);
     if (!$id('namaGuru').value.trim()) return tampilNotif('Nama guru wajib diisi', true);
     const nilai = [], links = [];
     for (let gi = 0; gi < GURU_KELOMPOK.length; gi++) {
@@ -160,11 +216,12 @@
       nilai.push(arr);
       links.push($id('link' + gi).value.trim() || '-');
     }
-    const s = masterSekolah.find(x => x.npsn === $id('sekolah').value);
+    // identitas diambil dari kolom isian (sudah bisa diperbaiki pengguna)
     const data = {
       ident: {
-        email: $id('email').value.trim(), kecamatan: s.kecamatan, jenjang: s.jenjang, npsn: s.npsn,
-        sekolah: s.sekolah, ks: s.ks, hpKS: s.hpKS,
+        email: $id('email').value.trim(), kecamatan: $id('namaKecamatan').value.trim(),
+        jenjang: $id('jenjang').value.trim(), npsn: $id('npsn').value.trim(),
+        sekolah: $id('namaSekolah').value.trim(), ks: $id('ks').value.trim(), hpKS: $id('hpKS').value.trim(),
         nama: $id('namaGuru').value.trim(), status: $id('status').value, pangkat: $id('pangkat').value.trim(),
         nip: $id('nip').value.trim(), mapel: $id('mapel').value.trim(), hp: $id('hpGuru').value.trim(),
         bulan: $id('bulan').value
@@ -174,6 +231,7 @@
     btn.disabled = true; btn.innerHTML = '<span class="muat"></span> Mengirim...';
     try {
       const r = await apiPost('submitguru', { data });
+      await Draft.hapus(kunciDraft);
       $id('konten').innerHTML = `<div class="kartu" style="text-align:center;padding:3rem">
         <div style="font-size:3rem">✅</div><h3>Penilaian guru berhasil disimpan</h3>
         <p style="color:var(--abu)">${esc(data.ident.nama)} — ${esc(data.ident.sekolah)}<br>
@@ -183,8 +241,12 @@
           <a class="btn btn-abu" href="rapor.html">Cetak Rapor</a></p></div>`;
       scrollTo(0, 0);
     } catch (e) {
-      tampilNotif('Gagal mengirim: ' + e.message, true);
+      await Outbox.tambah({ action: 'submitguru', data, ket: data.ident.nama + ' — ' + data.ident.bulan });
+      await Draft.hapus(kunciDraft);
+      tampilNotif('⚠ Gagal terkirim (' + e.message + '). Penilaian disimpan di antrean dan akan dikirim ulang otomatis saat koneksi pulih.', true);
       btn.disabled = false; btn.innerHTML = '📤 Kirim Penilaian';
+      tampilAntrean();
+      scrollTo(0, 0);
     }
   }
 
@@ -192,7 +254,7 @@
     const n = $id('notif');
     n.textContent = pesan; n.style.display = 'block';
     n.style.background = merah ? 'var(--merah)' : 'var(--biru-tua)';
-    setTimeout(() => n.style.display = 'none', 4500);
+    setTimeout(() => n.style.display = 'none', 6000);
   };
 
   render();

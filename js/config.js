@@ -68,6 +68,62 @@ const Snapshot = {
   async muat() { return await idbGet('snapshot'); }
 };
 
+// ---------- Draft form (autosave agar isian tidak hilang) ----------
+const Draft = {
+  async simpan(kunci, data) { data._waktu = new Date().toISOString(); await idbSet('draft_' + kunci, data); },
+  async muat(kunci) { return await idbGet('draft_' + kunci); },
+  async hapus(kunci) { await idbSet('draft_' + kunci, null); }
+};
+
+// ---------- Antrean kirim ulang (saat gagal kirim / offline) ----------
+const Outbox = {
+  async semua() { return (await idbGet('outbox')) || []; },
+  async tambah(item) {
+    const q = await this.semua();
+    item._id = Date.now() + '-' + Math.random().toString(36).slice(2, 7);
+    item._waktu = new Date().toISOString();
+    q.push(item);
+    await idbSet('outbox', q);
+    return q.length;
+  },
+  async hapus(id) {
+    const q = (await this.semua()).filter(x => x._id !== id);
+    await idbSet('outbox', q);
+    return q.length;
+  },
+  /* coba kirim semua isi antrean; kembalikan {terkirim, gagal} */
+  async kirimSemua() {
+    let q = await this.semua(), terkirim = 0;
+    for (const item of [...q]) {
+      try {
+        await apiPost(item.action, { data: item.data });
+        await this.hapus(item._id);
+        terkirim++;
+      } catch (e) { /* biarkan di antrean, coba lagi nanti */ }
+    }
+    return { terkirim, gagal: (await this.semua()).length };
+  }
+};
+
+// serialisasi seluruh input/select/textarea (id) + radio (name) dalam kontainer
+function formKeObjek(container) {
+  const data = { _f: {}, _r: {} };
+  container.querySelectorAll('input[id],select[id],textarea[id]').forEach(el => {
+    if (el.type === 'radio') return;
+    data._f[el.id] = el.value;
+  });
+  container.querySelectorAll('input[type=radio]:checked').forEach(el => { data._r[el.name] = el.value; });
+  return data;
+}
+function objekKeForm(container, data) {
+  if (!data) return;
+  Object.entries(data._f || {}).forEach(([id, v]) => { const el = container.querySelector('#' + CSS.escape(id)); if (el) el.value = v; });
+  Object.entries(data._r || {}).forEach(([nama, v]) => {
+    const el = container.querySelector(`input[name="${nama}"][value="${v}"]`); if (el) el.checked = true;
+  });
+}
+function debounce(fn, ms) { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; }
+
 // ---------- Pengaturan (kategori, kelompok baseline) ----------
 let _pengaturan = null;
 async function getPengaturan() {
