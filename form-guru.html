@@ -23,7 +23,7 @@
 </header>
 <main>
   <h2 class="judul-hal">👩‍🏫 Penilaian Kinerja Guru</h2>
-  <p class="sub-hal">Diisi oleh <b>Kepala Sekolah</b> (indikator 4 melibatkan siswa/orang tua/sejawat; indikator 5 oleh pengawas). Checklist <b>Ya = 1</b> / <b>Tidak = 0</b>, nilai otomatis dalam persen.</p>
+  <p class="sub-hal">Diisi oleh <b>Kepala Sekolah</b> (indikator 4 melibatkan siswa/orang tua/sejawat; indikator 5 oleh pengawas). Checklist <b>Ya = 1</b> / <b>Tidak = 0</b>; khusus 7 butir <b>survey kepuasan</b> diisi nilai desimal <b>0–1</b> (contoh: 0,85). Nilai otomatis dalam persen.</p>
   <div id="pesan"></div>
   <div id="konten"><div class="kartu" style="text-align:center"><span class="muat"></span> Memuat formulir…</div></div>
 </main>
@@ -73,15 +73,24 @@
     </div>`;
 
     GURU_KELOMPOK.forEach((g, gi) => {
+      const nSkor = g.skor || 0;
       html += `<div class="kartu"><h3><span class="no">${gi + 2}</span>${esc(g.nama)}</h3>
         <p style="font-size:.8rem;color:var(--abu);margin-bottom:.6rem">Tim penilai: ${esc(g.penilai)}</p>
-        <table><tr><th>Butir Observasi</th><th style="width:130px">Penilaian</th></tr>`;
+        ${nSkor ? '<p class="info info-biru" style="margin-bottom:.6rem">Butir <b>survey</b> diisi nilai desimal rentang <b>0 – 1</b> dengan 2 angka di belakang koma, contoh: <b>0,85</b>. Butir lainnya tetap Ya/Tidak.</p>' : ''}
+        <table><tr><th>Butir Observasi</th><th style="width:150px">Penilaian</th></tr>`;
       g.butir.forEach((b, bi) => {
-        html += `<tr><td>${esc(b)}</td><td>
-          <div class="skala">
-            <label><input type="radio" name="g${gi}b${bi}" value="1" required> Ya</label>
-            <label><input type="radio" name="g${gi}b${bi}" value="0"> Tidak</label>
-          </div></td></tr>`;
+        if (bi < nSkor) {
+          // kotak isian skor desimal 0–1 (2 desimal), terima koma atau titik
+          html += `<tr><td>${esc(b)} <span class="tag tag-biru">survey 0–1</span></td><td>
+            <input id="g${gi}s${bi}" type="text" inputmode="decimal" placeholder="0,85" maxlength="4"
+              style="text-align:center" autocomplete="off"></td></tr>`;
+        } else {
+          html += `<tr><td>${esc(b)}</td><td>
+            <div class="skala">
+              <label><input type="radio" name="g${gi}b${bi}" value="1" required> Ya</label>
+              <label><input type="radio" name="g${gi}b${bi}" value="0"> Tidak</label>
+            </div></td></tr>`;
+        }
       });
       html += `</table>
         <div style="margin-top:.7rem"><label>Link Bukti Dukung Indikator ${gi + 1} (Google Drive)</label>
@@ -158,19 +167,33 @@
     $id('pangkat').value = g.pangkat; $id('mapel').value = g.mapel; $id('hpGuru').value = g.hp;
     if (g.status) $id('status').value = g.status;
   }
+  /* parse skor survey 0–1 (terima koma/titik), 2 desimal; null jika tidak valid */
+  function parseSkor(v) {
+    v = String(v ?? '').trim().replace(',', '.');
+    if (v === '') return null;
+    const n = parseFloat(v);
+    if (isNaN(n) || n < 0 || n > 1) return null;
+    return Math.round(n * 100) / 100;
+  }
+  function ambilButir(gi, bi) {
+    const nSkor = GURU_KELOMPOK[gi].skor || 0;
+    if (bi < nSkor) return parseSkor($id(`g${gi}s${bi}`).value); // survey: 0–1 desimal
+    const v = document.querySelector(`input[name="g${gi}b${bi}"]:checked`);
+    return v ? +v.value : null; // checklist: 1/0
+  }
   function hitung() {
     let total = 0, semua = true;
     GURU_KELOMPOK.forEach((g, gi) => {
       let s = 0, lengkap = true;
       g.butir.forEach((b, bi) => {
-        const v = document.querySelector(`input[name="g${gi}b${bi}"]:checked`);
-        if (!v) lengkap = false; else s += +v.value;
+        const v = ambilButir(gi, bi);
+        if (v === null) lengkap = false; else s += v;
       });
-      const n = lengkap ? Math.round(s / g.butir.length * 100) : null;
-      $id('nilai' + gi).textContent = n === null ? '—' : n + ' %';
+      const n = lengkap ? Math.round(s / g.butir.length * 10000) / 100 : null;
+      $id('nilai' + gi).textContent = n === null ? '—' : f2(n) + ' %';
       if (n === null) semua = false; else total += n;
     });
-    $id('ringkas').textContent = semua ? `Rata keseluruhan: ${Math.round(total / GURU_KELOMPOK.length)} %` : '';
+    $id('ringkas').textContent = semua ? `Rata keseluruhan: ${f2(total / GURU_KELOMPOK.length)} %` : '';
   }
 
   async function pulihkanDraft() {
@@ -207,11 +230,16 @@
     if (!$id('namaGuru').value.trim()) return tampilNotif('Nama guru wajib diisi', true);
     const nilai = [], links = [];
     for (let gi = 0; gi < GURU_KELOMPOK.length; gi++) {
+      const nSkor = GURU_KELOMPOK[gi].skor || 0;
       const arr = [];
       for (let bi = 0; bi < GURU_KELOMPOK[gi].butir.length; bi++) {
-        const v = document.querySelector(`input[name="g${gi}b${bi}"]:checked`);
-        if (!v) return tampilNotif(`Kelompok ${gi + 1}: masih ada butir yang belum dinilai`, true);
-        arr.push(+v.value);
+        const v = ambilButir(gi, bi);
+        if (v === null) {
+          return tampilNotif(bi < nSkor
+            ? `Kelompok ${gi + 1}, butir survey ke-${bi + 1}: isi nilai 0–1 (contoh 0,85)`
+            : `Kelompok ${gi + 1}: masih ada butir yang belum dinilai`, true);
+        }
+        arr.push(v);
       }
       nilai.push(arr);
       links.push($id('link' + gi).value.trim() || '-');

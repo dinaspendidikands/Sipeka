@@ -105,7 +105,8 @@ const GURU_KELOMPOK = [
     'Pendampingan sejawat (Tim penilaian Kinerja, Mentoring, Coaching, Narasumber pelatihan, Narasumber berbagi)',
     'Meraih Penghargaan di Bidang Akademik maupun Non Akademik'
   ]},
-  { nama: 'Kepuasan, Komunikasi & Prestasi Siswa', penilai: 'Kepala Sekolah, Siswa, Orang Tua Siswa (Komite Sekolah), Teman Sejawat', butir: [
+  /* 7 butir pertama = survey, diisi skor desimal 0–1 (mis. 0,85); sisanya checklist Ya/Tidak */
+  { nama: 'Kepuasan, Komunikasi & Prestasi Siswa', penilai: 'Kepala Sekolah, Siswa, Orang Tua Siswa (Komite Sekolah), Teman Sejawat', skor: 7, butir: [
     'Survey Kepuasan Kinerja Guru dari Siswa 1',
     'Survey Kepuasan Kinerja Guru dari Siswa 2',
     'Survey Kepuasan Kinerja Guru dari Orang Tua (Komite Sekolah) 1',

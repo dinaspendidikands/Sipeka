@@ -1,9 +1,9 @@
 /* SIPEKA service worker — cache app shell agar bisa dibuka offline */
-const CACHE = 'sipeka-v2';
+const CACHE = 'sipeka-v4';
 const SHELL = [
   './', 'index.html', 'form-ks-sd-smp.html', 'form-ks-paud.html', 'form-guru.html',
   'rapor.html', 'dashboard.html', 'admin.html',
-  'css/app.css', 'js/config.js', 'js/indikator.js',
+  'css/app.css', 'js/config.js', 'js/indikator.js', 'js/form-ks.js',
   'https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js',
   'https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js'
 ];
@@ -28,7 +28,4 @@ self.addEventListener('fetch', e => {
           caches.open(CACHE).then(c => c.put(e.request, klon));
         }
         return r;
-      }).catch(() => caches.match('index.html'))
-    )
-  );
-});
+      }).catch(() => caches.match('index.html')
