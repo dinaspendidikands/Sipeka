@@ -39,6 +39,7 @@
 
   <div class="kartu tanpa-cetak">
     <div style="display:flex;gap:.6rem;flex-wrap:wrap;align-items:center">
+      <span id="modeToggle"></span>
       <button class="btn btn-hijau" id="btnTarik">📥 Tarik Data (Offline)</button>
       <button class="btn btn-abu" id="btnCsvKS">⬇ CSV Ringkasan KS</button>
       <button class="btn btn-abu" id="btnCsvGuru">⬇ CSV Ringkasan Guru</button>
@@ -95,12 +96,17 @@
   }
 
   async function muat() {
+    pasangToggleMode($id('modeToggle'));
     try {
+      if (Admin.offlineSesi) throw new Error('Sesi admin offline');
       data = await apiGet('laporan', { token: Admin.token });
     } catch (e) {
       const s = await Snapshot.muat().catch(() => null);
-      if (s) { data = s; $id('pesan').innerHTML = '<div class="info info-kuning">📶 Mode offline — menampilkan snapshot tarik data terakhir.</div>'; }
-      else { $id('pesan').innerHTML = `<div class="info info-merah">${esc(e.message)} — dan belum ada snapshot offline.</div>`; return; }
+      if (s) {
+        data = s;
+        $id('pesan').innerHTML = `<div class="info info-kuning">📴 Mode offline — menampilkan snapshot tarik data terakhir (${s._waktu ? new Date(s._waktu).toLocaleString('id-ID') : '-'}). ${Admin.offlineSesi ? 'Sesi login offline: tarik data baru perlu online.' : ''}</div>`;
+      }
+      else { $id('pesan').innerHTML = `<div class="info info-merah">${esc(e.message)} — dan belum ada snapshot offline. Login online lalu Tarik Data terlebih dahulu.</div>`; return; }
     }
     pengaturan = Object.assign({}, PENGATURAN_DEFAULT, data.pengaturan || {});
     isiFilter(); refresh();
@@ -246,6 +252,8 @@
 
   /* ============ TARIK DATA & EKSPOR ============ */
   $id('btnTarik').onclick = async () => {
+    if (Mode.aktifOffline) return notif('Matikan Mode Offline (saklar di atas) dan pastikan ada internet untuk menarik data baru.', true);
+    if (Admin.offlineSesi) return notif('Sesi login offline — login ulang saat online untuk menarik data baru.', true);
     const b = $id('btnTarik');
     b.disabled = true; b.innerHTML = '<span class="muat"></span> Menarik data…';
     try {

@@ -7,8 +7,34 @@ const CONFIG = {
   VERSI: '1.0'
 };
 
+// ---------- Mode Online/Offline ----------
+const Mode = {
+  /* 'auto' = ikuti kondisi jaringan; 'offline' = dipaksa offline (pakai snapshot) */
+  get paksa() { return localStorage.getItem('sipeka_mode') || 'auto'; },
+  set paksa(v) { localStorage.setItem('sipeka_mode', v); },
+  get aktifOffline() { return this.paksa === 'offline' || !navigator.onLine; }
+};
+/* saklar mode untuk halaman dashboard & rapor */
+function pasangToggleMode(el) {
+  if (!el) return;
+  const offline = Mode.aktifOffline;
+  el.innerHTML = `
+    <span class="mode-status ${offline ? 'mode-off' : 'mode-on'}">
+      ${offline ? '📴 OFFLINE' : '🟢 ONLINE'}${Mode.paksa === 'offline' ? ' (dipaksa)' : !navigator.onLine ? ' (tidak ada jaringan)' : ''}
+    </span>
+    <label class="mode-saklar" title="Paksa mode offline: data diambil dari snapshot, tanpa internet">
+      <input type="checkbox" id="cbModeOffline" ${Mode.paksa === 'offline' ? 'checked' : ''}>
+      <span>Mode Offline</span>
+    </label>`;
+  el.querySelector('#cbModeOffline').onchange = e => {
+    Mode.paksa = e.target.checked ? 'offline' : 'auto';
+    location.reload();
+  };
+}
+
 // ---------- Panggilan API ----------
 async function apiGet(action, params = {}) {
+  if (Mode.aktifOffline) throw new Error('Mode offline aktif — data diambil dari snapshot perangkat');
   const u = new URL(CONFIG.API_URL);
   u.searchParams.set('action', action);
   Object.entries(params).forEach(([k, v]) => v != null && u.searchParams.set(k, v));
@@ -18,6 +44,7 @@ async function apiGet(action, params = {}) {
   return j;
 }
 async function apiPost(action, body = {}) {
+  if (Mode.aktifOffline) throw new Error('Mode offline aktif — kiriman disimpan di antrean perangkat');
   // Content-Type text/plain agar tidak kena preflight CORS Apps Script
   const r = await fetch(CONFIG.API_URL, {
     method: 'POST',
@@ -34,8 +61,30 @@ const Admin = {
   get token() { return sessionStorage.getItem('sipeka_token'); },
   set token(t) { t ? sessionStorage.setItem('sipeka_token', t) : sessionStorage.removeItem('sipeka_token'); },
   get aktif() { return !!this.token; },
+  /* sesi offline: login diverifikasi lokal, hanya bisa baca snapshot */
+  get offlineSesi() { return this.token === 'OFFLINE'; },
   wajib() { if (!this.aktif) { location.href = 'admin.html?next=' + encodeURIComponent(location.pathname.split('/').pop()); return false; } return true; },
   keluar() { this.token = null; location.href = 'index.html'; }
+};
+
+/* hash SHA-256 hex untuk verifikasi login offline (fallback bila crypto.subtle tak tersedia) */
+async function sha256Hex(s) {
+  if (crypto && crypto.subtle) {
+    const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s));
+    return [...new Uint8Array(b)].map(x => x.toString(16).padStart(2, '0')).join('');
+  }
+  let h1 = 0x811c9dc5, h2 = 0x1000193; // fallback sederhana (non-https lokal)
+  for (const c of s) { h1 = (h1 ^ c.charCodeAt(0)) * 16777619 >>> 0; h2 = (h2 + c.charCodeAt(0)) * 31 >>> 0; }
+  return 'fb' + h1.toString(16) + h2.toString(16);
+}
+/* simpan/cek kunci login offline di perangkat ini */
+const LoginOffline = {
+  async simpan(password) { await idbSet('adminKunci', await sha256Hex(password)); },
+  async cocok(password) {
+    const k = await idbGet('adminKunci').catch(() => null);
+    return !!k && k === await sha256Hex(password);
+  },
+  async ada() { return !!(await idbGet('adminKunci').catch(() => null)); }
 };
 
 // ---------- IndexedDB: snapshot offline ----------

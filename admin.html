@@ -81,15 +81,35 @@ function notif(p, merah) {
 
 async function masuk() {
   const btn = $id('btnMasuk');
+  const password = $id('pass').value;
   btn.disabled = true; btn.innerHTML = '<span class="muat"></span> Memeriksa…';
   try {
-    const r = await apiPost('login', { password: $id('pass').value });
+    const r = await apiPost('login', { password });
     Admin.token = r.token;
-    const next = new URLSearchParams(location.search).get('next');
-    if (next && next !== 'admin.html') { location.href = next; return; }
-    tampilkanPengaturan();
-  } catch (e) { $id('galat').textContent = e.message; }
+    await LoginOffline.simpan(password); // kunci login offline utk perangkat ini
+    lanjutSetelahLogin();
+  } catch (e) {
+    if (e.message === 'Password salah') {
+      $id('galat').textContent = e.message;
+    } else {
+      // server tak terjangkau / mode offline → verifikasi lokal
+      if (await LoginOffline.cocok(password)) {
+        Admin.token = 'OFFLINE';
+        notif('📴 Masuk dalam sesi offline — data dari snapshot; tarik data & simpan pengaturan perlu online.');
+        lanjutSetelahLogin();
+      } else if (await LoginOffline.ada()) {
+        $id('galat').textContent = 'Offline: password tidak cocok dengan kunci tersimpan di perangkat ini.';
+      } else {
+        $id('galat').textContent = 'Tidak bisa terhubung ke server (' + e.message + '). Login offline hanya bisa di perangkat yang pernah dipakai login online.';
+      }
+    }
+  }
   btn.disabled = false; btn.textContent = 'Masuk';
+}
+function lanjutSetelahLogin() {
+  const next = new URLSearchParams(location.search).get('next');
+  if (next && next !== 'admin.html') { location.href = next; return; }
+  tampilkanPengaturan();
 }
 
 async function tampilkanPengaturan() {
@@ -99,7 +119,12 @@ async function tampilkanPengaturan() {
   try {
     const j = await apiGet('pengaturan');
     pengaturan = Object.assign({}, PENGATURAN_DEFAULT, j.pengaturan || {});
-  } catch (e) { $id('pesan').innerHTML = `<div class="info info-kuning">Memuat pengaturan default (offline): ${esc(e.message)}</div>`; }
+  } catch (e) {
+    const s = await Snapshot.muat().catch(() => null);
+    if (s && s.pengaturan) pengaturan = Object.assign({}, PENGATURAN_DEFAULT, s.pengaturan);
+    $id('pesan').innerHTML = `<div class="info info-kuning">📴 ${Admin.offlineSesi ? 'Sesi offline — pengaturan hanya bisa dibaca; menyimpan & ganti password perlu online.' : 'Memuat pengaturan dari snapshot/default: ' + esc(e.message)}</div>`;
+  }
+  if (Admin.offlineSesi) { $id('btnSimpan').disabled = true; $id('btnPass').disabled = true; }
   renderTabel();
 }
 
@@ -152,7 +177,9 @@ document.addEventListener('DOMContentLoaded', () => {
   };
   $id('btnPass').onclick = async () => {
     try {
-      await apiPost('gantipassword', { token: Admin.token, passwordBaru: $id('passBaru').value });
+      const baru = $id('passBaru').value;
+      await apiPost('gantipassword', { token: Admin.token, passwordBaru: baru });
+      await LoginOffline.simpan(baru); // perbarui kunci login offline perangkat ini
       $id('passBaru').value = '';
       notif('✅ Password admin berhasil diganti.');
     } catch (e) { notif('Gagal: ' + e.message, true); }

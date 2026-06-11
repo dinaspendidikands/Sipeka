@@ -43,7 +43,8 @@
           <button class="btn btn-abu" id="cetak" style="display:none" onclick="print()">🖨 Cetak / PDF</button>
         </div>
       </div>
-      <p id="modeOffline" class="info info-kuning" style="display:none;margin-top:.6rem">📶 Mode offline — data diambil dari snapshot tarik data terakhir.</p>
+      <div style="margin-top:.7rem" id="modeToggle"></div>
+      <p id="modeOffline" class="info info-kuning" style="display:none;margin-top:.6rem">📴 Mode offline — data diambil dari snapshot tarik data terakhir.</p>
     </div>
   </div>
   <div id="hasil"></div>
@@ -58,6 +59,7 @@
   let masterSekolah = [], snapshot = null, pengaturan = PENGATURAN_DEFAULT;
 
   async function init() {
+    pasangToggleMode($id('modeToggle'));
     isiSelect($id('bulan'), BULAN_LIST);
     snapshot = await Snapshot.muat().catch(() => null);
     try {
@@ -113,43 +115,79 @@
     isiSelect($id('guru'), guru, '— pilih guru —');
   }
 
+  /* kembalikan SEMUA pengisian yang cocok (bisa lebih dari satu dalam sebulan) */
   async function ambilData() {
     const p = { jenis: $id('jenis').value, npsn: $id('sekolah').value, bulan: $id('bulan').value };
     if (p.jenis === 'guru') p.nama = $id('guru').value;
     try {
       const r = await apiGet('rapor', p);
-      return r.ditemukan ? r.row : null;
+      return r.ditemukan ? (r.rows || [r.row]) : [];
     } catch (e) {
       // offline: cari di snapshot
       if (!snapshot || !snapshot.detail) throw new Error('Offline dan snapshot tidak tersedia');
       $id('modeOffline').style.display = 'block';
       if (p.jenis === 'guru') {
         const L = layoutGuru();
-        const hit = snapshot.detail.guru.filter(r => String(r[L.id.npsn]).replace(/^'/,'') === p.npsn &&
+        return snapshot.detail.guru.filter(r => String(r[L.id.npsn]).replace(/^'/,'') === p.npsn &&
           String(r[L.id.bulan]) === p.bulan && String(r[L.id.nama]).trim() === p.nama.trim());
-        return hit.length ? hit[hit.length - 1] : null;
       }
       const L = layoutKS(p.jenis);
       const rows = p.jenis === 'paud' ? snapshot.detail.paud : snapshot.detail.sdsmp;
-      const hit = rows.filter(r => String(r[L.id.npsn]).replace(/^'/,'') === p.npsn && String(r[L.id.bulan]) === p.bulan);
-      return hit.length ? hit[hit.length - 1] : null;
+      return rows.filter(r => String(r[L.id.npsn]).replace(/^'/,'') === p.npsn && String(r[L.id.bulan]) === p.bulan);
     }
   }
+
+  function fmtWaktu(v) {
+    const d = new Date(v);
+    return isNaN(d) ? esc(String(v)) : d.toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' });
+  }
+  /* daftar pilihan saat ada >1 pengisian pada bulan yang sama (tidak ikut tercetak) */
+  function renderPilihan(rows, terpilih) {
+    const jenis = $id('jenis').value;
+    let info = '';
+    rows.forEach((row, i) => {
+      let ket;
+      if (jenis === 'guru') {
+        const L = layoutGuru();
+        ket = `Rata ${f2(angka(row[L.colRataAll]))}%`;
+      } else {
+        const L = layoutKS(jenis);
+        ket = `Minggu ${esc(row[L.id.minggu])}` + (jenis === 'paud' ? '' : ` · ${esc(row[L.id.periode])}`);
+      }
+      info += `<tr ${i === terpilih ? 'style="background:#e6f5ee"' : ''}>
+        <td>${i + 1}</td><td>${fmtWaktu(row[0])}</td><td>${ket}</td>
+        <td><button class="btn ${i === terpilih ? 'btn-hijau' : 'btn-biru'}" style="padding:.35rem 1rem"
+          onclick="pilihPengisian(${i})">${i === terpilih ? '✔ Ditampilkan' : 'Tampilkan'}</button></td></tr>`;
+    });
+    return `<div class="kartu tanpa-cetak">
+      <div class="info info-kuning" style="margin-bottom:.7rem">⚠ Terdapat <b>${rows.length} pengisian</b> untuk
+        pilihan ini pada bulan ${esc($id('bulan').value)}. Pilih pengisian yang akan dicetak:</div>
+      <div style="overflow-x:auto"><table>
+        <tr><th style="width:36px">No</th><th>Waktu Pengisian</th><th>Keterangan</th><th style="width:140px">Aksi</th></tr>
+        ${info}</table></div></div>`;
+  }
+
+  let daftarRows = [];
+  window.pilihPengisian = function (i) {
+    const jenis = $id('jenis').value;
+    jenis === 'guru' ? raporGuru(daftarRows[i]) : raporKS(daftarRows[i], jenis);
+    if (daftarRows.length > 1) $id('hasil').insertAdjacentHTML('afterbegin', renderPilihan(daftarRows, i));
+    $id('cetak').style.display = '';
+  };
 
   async function tampilkan() {
     if (!$id('sekolah').value) return alert('Pilih sekolah terlebih dahulu');
     if ($id('jenis').value === 'guru' && !$id('guru').value) return alert('Pilih guru terlebih dahulu');
     $id('hasil').innerHTML = '<div class="kartu tanpa-cetak" style="text-align:center"><span class="muat"></span> Mengambil data…</div>';
-    let row;
-    try { row = await ambilData(); }
+    try { daftarRows = await ambilData(); }
     catch (e) { $id('hasil').innerHTML = `<div class="info info-merah">${esc(e.message)}</div>`; return; }
-    if (!row) {
+    if (!daftarRows.length) {
       $id('hasil').innerHTML = `<div class="info info-kuning">Belum ada penilaian untuk pilihan tersebut pada bulan ${esc($id('bulan').value)}.</div>`;
       $id('cetak').style.display = 'none';
       return;
     }
-    $id('jenis').value === 'guru' ? raporGuru(row) : raporKS(row, $id('jenis').value);
-    $id('cetak').style.display = '';
+    // satu pengisian → langsung tampil; lebih dari satu → tampilkan terbaru + daftar pilihan
+    pilihPengisian(daftarRows.length > 1 ? daftarRows.length - 1 : 0);
   }
 
   function bersih(v){ return String(v ?? '').replace(/^'/,''); }
