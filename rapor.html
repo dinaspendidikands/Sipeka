@@ -191,6 +191,10 @@
   }
 
   function bersih(v){ return String(v ?? '').replace(/^'/,''); }
+  /* baris label : nilai — tanda ":" sejajar (kolom label lebar tetap) */
+  function barisInfo(label, nilai) {
+    return `<tr><td>${esc(label)}</td><td>:</td><td>${esc(nilai ?? '-')}</td></tr>`;
+  }
   function selLink(link, idQR) {
     const ok = /^https?:\/\//.test(String(link));
     return ok
@@ -214,24 +218,30 @@
         <h2>HASIL PENILAIAN KINERJA KEPALA SEKOLAH</h2>
         <p>JENJANG ${jenis === 'paud' ? 'PAUD/TK' : 'SD &amp; SMP'} — DINAS PENDIDIKAN KABUPATEN DELI SERDANG — TAHUN ${tahun}</p>
       </div>
-      <table style="border:none;margin-bottom:.9rem"><tr style="border:none">
-        <td style="border:none;width:50%;padding:0">
-          <b>INFORMASI SEKOLAH</b><br>
-          Jenjang : ${esc(row[id.jenjang])}<br>
-          Kecamatan : ${esc(row[id.kecamatan])}<br>
-          Nama Sekolah : ${esc(row[id.sekolah])}<br>
-          NPSN : ${esc(bersih(row[id.npsn]))}
+      <b>INFORMASI SEKOLAH</b>
+      <table style="border:none;border-collapse:collapse;margin:.2rem 0 .9rem;width:100%"><tr>
+        <td style="border:none;width:50%;padding:0;vertical-align:top">
+          <table class="tbl-info">
+            ${barisInfo('Jenjang', row[id.jenjang])}
+            ${barisInfo('Kecamatan', row[id.kecamatan])}
+            ${barisInfo('Nama Sekolah', row[id.sekolah])}
+            ${barisInfo('NPSN', bersih(row[id.npsn]))}
+          </table>
         </td>
-        <td style="border:none;padding:0">
-          Kepala Sekolah : ${esc(row[id.ks])} (HP ${esc(bersih(row[id.hpKS]))})<br>
-          Pengawas : ${esc(row[id.pengawas])} (HP ${esc(bersih(row[id.hpPengawas]))})<br>
-          ${jenis === 'paud' ? '' : 'Periode : ' + esc(row[id.periode]) + '<br>'}
-          Bulan : ${esc(row[id.bulan])} — Minggu ${esc(row[id.minggu])}
+        <td style="border:none;padding:0 0 0 .8rem;vertical-align:top">
+          <table class="tbl-info">
+            ${barisInfo('Kepala Sekolah', row[id.ks])}
+            ${barisInfo('No. HP', bersih(row[id.hpKS]))}
+            ${barisInfo('Pengawas', row[id.pengawas])}
+            ${barisInfo('No. HP', bersih(row[id.hpPengawas]))}
+            ${jenis === 'paud' ? '' : barisInfo('Periode', row[id.periode])}
+            ${barisInfo('Bulan', row[id.bulan] + ' — Minggu ' + row[id.minggu])}
+          </table>
         </td></tr></table>
       <b>HASIL PENILAIAN PER INDIKATOR</b>
       <table style="margin-top:.3rem">
         <tr><th style="width:28px">No</th><th style="width:42px">Kode</th><th>Indikator Penilaian</th>
-            <th>Baseline</th><th>Target</th><th>Capaian</th><th style="width:130px">Link Dokumentasi</th><th style="width:60px">QR</th></tr>`;
+            <th>Baseline</th><th>Target</th><th>Capaian</th><th style="width:130px">Link Dokumentasi</th><th style="width:60px;text-align:center">QR</th></tr>`;
     let no = 1;
     L.kelompok.forEach(g => {
       html += `<tr><td colspan="8" style="background:#dde7f2;font-weight:700">${esc(g.nama)}</td></tr>`;
@@ -253,9 +263,9 @@
       </table>
       <p style="margin-top:.7rem"><b>Catatan dan Rekomendasi:</b><br>${esc(row[L.colCatatan] || '-')}</p>
       <div class="ttd">
-        <div class="kolom">Penilai,<br>Pengawas<div class="nama">${esc(row[id.pengawas])}</div>NIP.</div>
+        <div class="kolom">&nbsp;<br>Penilai,<br>Pengawas<div class="nama">${esc(row[id.pengawas])}</div></div>
         <div class="kolom">${esc(row[id.kecamatan])}, ${new Date().getDate()} ${esc(row[id.bulan])} ${tahun}<br>Yang dinilai,<br>Kepala ${esc(row[id.sekolah])}
-          <div class="nama">${esc(row[id.ks])}</div>NIP.</div>
+          <div class="nama">${esc(row[id.ks])}</div></div>
       </div></div>`;
     $id('hasil').innerHTML = html;
     L.ind.forEach((x, i) => {
@@ -288,7 +298,7 @@
       </table>
       <b>HASIL OBSERVASI (PENGAMATAN/PEMANTAUAN)</b>
       <table style="margin-top:.3rem">
-        <tr><th style="width:28px">No.</th><th>Observasi</th><th style="width:64px">Nilai (%)</th><th style="width:100px">Kategori</th><th>Tim Penilai</th><th style="width:120px">Bukti Dukung</th><th style="width:60px">QR</th></tr>`;
+        <tr><th style="width:28px">No.</th><th>Observasi</th><th style="width:64px">Nilai (%)</th><th style="width:100px">Kategori</th><th>Tim Penilai</th><th style="width:120px">Bukti Dukung</th><th style="width:60px;text-align:center">QR</th></tr>`;
     L.grup.forEach((g, gi) => {
       html += `<tr><td>${gi + 1}</td><td>${esc(g.nama)}</td>
         <td style="text-align:center">${f2(nilai[gi])}</td>
@@ -303,9 +313,9 @@
         Penilai dan guru yang dinilai menyatakan telah membaca dan memahami isi rapor penilaian kinerja ini
         serta menyetujui hasil penilaian pada setiap indikator.</p>
       <div class="ttd">
-        <div class="kolom">Guru yang Dinilai,<div class="nama">${esc(row[id.nama])}</div>NIP. ${esc(bersih(row[id.nip]))}</div>
+        <div class="kolom">&nbsp;<br>Guru yang Dinilai,<div class="nama">${esc(row[id.nama])}</div></div>
         <div class="kolom">${esc(row[id.kecamatan])}, ${new Date().getDate()} ${esc(row[id.bulan])} ${tahun}<br>Kepala Sekolah,
-          <div class="nama">${esc(row[id.ks])}</div>NIP.</div>
+          <div class="nama">${esc(row[id.ks])}</div></div>
       </div></div>`;
     $id('hasil').innerHTML = html;
     L.grup.forEach((g, gi) => {

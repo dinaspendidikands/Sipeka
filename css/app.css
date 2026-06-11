@@ -93,7 +93,12 @@ footer{background:var(--biru-tua);color:#bcd3e8;text-align:center;padding:1rem;f
 .lembar-rapor table{font-size:.8rem}
 .lembar-rapor th,.lembar-rapor td{border:1px solid #444;padding:.32rem .45rem}
 .lembar-rapor th{background:#e9eef5}
-.ttd{display:flex;justify-content:space-between;margin-top:2.2rem;text-align:center;font-size:.85rem}
-.ttd .kolom{width:45%}
-.ttd .nama{margin-top:4.2rem;font-weight:700;text-decoration:underline}
-.qr-kecil{width:52px;height:52px}
+.ttd{display:flex;justify-content:space-between;margin-top:2.2rem;text-align:left;font-size:.85rem}
+.ttd .kolom{width:45%;text-align:left}
+.ttd .nama{margin-top:4.2rem;font-weight:700;text-decoration:underline;text-align:left}
+.qr-kecil{width:52px;height:52px;margin:0 auto}
+/* tabel info rapor: kolom label tetap agar tanda ":" sejajar */
+.tbl-info{border:none;width:100%;border-collapse:collapse}
+.tbl-info td{border:none !important;background:none !important;padding:.07rem .15rem;font-size:.85rem;vertical-align:top}
+.tbl-info td:nth-child(1){width:118px}
+.tbl-info td:nth-child(2){width:12px;text-align:center}
