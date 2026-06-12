@@ -45,6 +45,7 @@
         <div id="wPengawas" style="display:none"><label>Nama Pengawas</label><select id="pengawas"></select></div>
         <div id="wKS" style="display:none"><label>Nama Kepala Sekolah</label><select id="namaKS"></select></div>
         <div><label>Bulan</label><select id="bulan"></select></div>
+        <div><label>Tanggal Rapor (untuk tanda tangan)</label><input id="tglRapor" placeholder="contoh: 12 Juni 2026"></div>
         <div style="display:flex;align-items:flex-end;gap:.5rem">
           <button class="btn btn-biru" id="tampil">Tampilkan</button>
           <button class="btn btn-abu" id="cetak" style="display:none" onclick="print()">🖨 Cetak / PDF</button>
@@ -68,6 +69,7 @@
   async function init() {
     pasangToggleMode($id('modeToggle'));
     isiSelect($id('bulan'), BULAN_LIST);
+    $id('tglRapor').value = new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
     snapshot = await Snapshot.muat().catch(() => null);
     try {
       masterSekolah = (await apiGet('master')).sekolah;
@@ -293,7 +295,9 @@
     const n = L.ind.length;
     L.ind.forEach(x => { rataB += angka(row[x.colB]); rataT += angka(row[x.colT]); rataC += angka(row[x.colC]); });
     rataB /= n; rataT /= n; rataC /= n;
-    const kategori = kategoriDari(rataC, pengaturan.kategoriKS);
+    /* kategori capaian sengaja tidak ditampilkan di lembar cetak (rencana dimunculkan kembali) */
+    const m = masterSekolah.find(s => String(s.npsn) === bersih(row[id.npsn])) || {};
+    const tgl = $id('tglRapor').value.trim() || new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
     const qr = [];
 
     let html = `<div class="lembar-rapor">
@@ -343,15 +347,14 @@
     html += `<tr style="font-weight:700"><td colspan="3">Nilai Rata-Rata</td>
         <td style="text-align:center">${f2(rataB)}</td><td style="text-align:center">${f2(rataT)}</td>
         <td style="text-align:center">${f2(rataC)}</td><td colspan="2"></td></tr>
-      <tr style="font-weight:700"><td colspan="3">Kinerja (Capaian − Baseline) / Kategori Capaian</td>
-        <td colspan="3" style="text-align:center">${f2(rataC - rataB)}</td>
-        <td colspan="2" style="text-align:center">${esc(kategori)}</td></tr>
+      <tr style="font-weight:700"><td colspan="3">Kinerja (Capaian − Baseline)</td>
+        <td colspan="5" style="text-align:center">${f2(rataC - rataB)}</td></tr>
       </table>
       <p style="margin-top:.7rem"><b>Catatan dan Rekomendasi:</b><br>${esc(row[L.colCatatan] || '-')}</p>
       <div class="ttd">
-        <div class="kolom">&nbsp;<br>Penilai,<br>Pengawas<div class="nama">${esc(row[id.pengawas])}</div></div>
-        <div class="kolom">${esc(row[id.kecamatan])}, ${new Date().getDate()} ${esc(row[id.bulan])} ${tahun}<br>Yang dinilai,<br>Kepala ${esc(row[id.sekolah])}
-          <div class="nama">${esc(row[id.ks])}</div></div>
+        <div class="kolom">&nbsp;<br>Penilai,<br>Pengawas<div class="nama">${esc(row[id.pengawas])}</div>NIP. ${esc(m.nipPengawas || '………………………………')}</div>
+        <div class="kolom">${esc(row[id.kecamatan])}, ${esc(tgl)}<br>Yang dinilai,<br>Kepala ${esc(row[id.sekolah])}
+          <div class="nama">${esc(row[id.ks])}</div>NIP. ${esc(m.nipKS || '………………………………')}</div>
       </div></div>`;
     return { html, qr };
   }
@@ -363,6 +366,8 @@
     const tahun = new Date().getFullYear();
     const nilai = L.colRata.map(c => angka(row[c]));
     const rataAll = angka(row[L.colRataAll]);
+    const m = masterSekolah.find(s => String(s.npsn) === bersih(row[id.npsn])) || {};
+    const tgl = $id('tglRapor').value.trim() || new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
     const qr = [];
 
     let html = `<div class="lembar-rapor">
@@ -400,8 +405,8 @@
         serta menyetujui hasil penilaian pada setiap indikator.</p>
       <div class="ttd">
         <div class="kolom">&nbsp;<br>Guru yang Dinilai,<div class="nama">${esc(row[id.nama])}</div></div>
-        <div class="kolom">${esc(row[id.kecamatan])}, ${new Date().getDate()} ${esc(row[id.bulan])} ${tahun}<br>Kepala Sekolah,
-          <div class="nama">${esc(row[id.ks])}</div></div>
+        <div class="kolom">${esc(row[id.kecamatan])}, ${esc(tgl)}<br>Kepala Sekolah,
+          <div class="nama">${esc(row[id.ks])}</div>NIP. ${esc(m.nipKS || '………………………………')}</div>
       </div></div>`;
     return { html, qr };
   }
