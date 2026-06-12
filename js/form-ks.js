@@ -39,9 +39,12 @@
       <div class="baris">
         <div><label>Nama Kepala Sekolah</label><input id="ks"></div>
         <div><label>Nomor HP Kepala Sekolah</label><input id="hpKS"></div>
+        <div><label>NIP Kepala Sekolah</label><input id="nipKS" placeholder="NIP kepala sekolah"></div>
         <div><label>Nama Pengawas</label><input id="pengawas"></div>
         <div><label>Nomor HP Pengawas</label><input id="hpPengawas"></div>
+        <div><label>NIP Pengawas</label><input id="nipPengawas" placeholder="NIP pengawas"></div>
       </div>
+      <p class="info info-kuning" style="margin:.6rem 0">🔄 Perbaikan pada kolom identitas di atas akan <b>memperbarui data sekolah di MASTER_SEKOLAH</b> secara otomatis saat penilaian dikirim.</p>
       <div class="baris">
         ${paud ? '' : `<div><label>Periode Penilaian</label><select id="periode">${TW_LIST.map(t=>`<option>${t}</option>`).join('')}</select></div>`}
         <div><label>Bulan</label><select id="bulan">${BULAN_LIST.map(b=>`<option>${b}</option>`).join('')}</select></div>
@@ -142,7 +145,7 @@
   }
   function modeManual() {
     // kosongkan kolom identitas agar diketik manual, arahkan kursor ke NPSN
-    ['npsn','namaSekolah','jenjang','namaKecamatan','ks','hpKS','pengawas','hpPengawas'].forEach(k => $id(k).value = '');
+    ['npsn','namaSekolah','jenjang','namaKecamatan','ks','hpKS','nipKS','pengawas','hpPengawas','nipPengawas'].forEach(k => $id(k).value = '');
     if ($id('kecamatan').value && $id('kecamatan').value !== '__manual') $id('namaKecamatan').value = $id('kecamatan').value;
     tampilNotif('Mode ketik manual: isi NPSN, nama sekolah, dan identitas lainnya pada kolom di bawah.');
     $id('npsn').focus();
@@ -155,6 +158,8 @@
     $id('jenjang').value = s.jenjang; $id('namaKecamatan').value = s.kecamatan;
     $id('ks').value = s.ks; $id('hpKS').value = s.hpKS;
     $id('pengawas').value = s.pengawas; $id('hpPengawas').value = s.hpPengawas;
+    $id('nipKS').value = s.nipKS || '';
+    $id('nipPengawas').value = s.nipPengawas || akun.username || ''; // username pengawas = NIP
   }
   function hitungRingkas() {
     const n = flatIndikator(kelompok).length;
@@ -214,6 +219,7 @@
         kecamatan: $id('namaKecamatan').value.trim(), jenjang: $id('jenjang').value.trim(),
         sekolah: $id('namaSekolah').value.trim(), pengawas: $id('pengawas').value.trim(),
         hpPengawas: $id('hpPengawas').value.trim(), ks: $id('ks').value.trim(), hpKS: $id('hpKS').value.trim(),
+        nipKS: $id('nipKS').value.trim(), nipPengawas: $id('nipPengawas').value.trim(),
         periode: paud ? '' : $id('periode').value, bulan: $id('bulan').value, minggu: $id('minggu').value
       },
       nilai, catatan: $id('catatan').value.trim()
