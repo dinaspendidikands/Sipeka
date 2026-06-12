@@ -229,12 +229,15 @@
         nipKS: $id('nipKS').value.trim(), nipPengawas: $id('nipPengawas').value.trim(),
         periode: paud ? '' : $id('periode').value, bulan: $id('bulan').value, minggu: $id('minggu').value
       },
-      nilai, catatan: $id('catatan').value.trim()
+      nilai, catatan: $id('catatan').value.trim(),
+      // anti-duplikat: ID sama dipakai utk kirim ulang (manual maupun dari antrean)
+      idKirim: (window._idKirim = window._idKirim || idKirimBaru())
     };
     const btn = $id('kirim');
     btn.disabled = true; btn.innerHTML = '<span class="muat"></span> Mengirim...';
     try {
       const r = await apiPost(aksiSubmit, { data, auth: Pengguna.auth });
+      window._idKirim = null; // sukses → ID berikutnya baru
       await Draft.hapus(kunciDraft);
       $id('konten').innerHTML = `<div class="kartu" style="text-align:center;padding:3rem">
         <div style="font-size:3rem">✅</div>

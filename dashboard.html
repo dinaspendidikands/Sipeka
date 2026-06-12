@@ -101,12 +101,20 @@
       if (Admin.offlineSesi) throw new Error('Sesi admin offline');
       data = await apiGet('laporan', { token: Admin.token });
     } catch (e) {
+      // sesi admin kedaluwarsa saat online → bersihkan token & tawarkan login ulang
+      const sesiHabis = /sesi admin/i.test(String(e.message)) && !Mode.aktifOffline && navigator.onLine && !Admin.offlineSesi;
+      if (sesiHabis) Admin.token = null;
+      const tombolLogin = sesiHabis
+        ? ` <a class="btn btn-biru" style="padding:.35rem 1rem;margin-left:.6rem" href="admin.html?next=dashboard.html">🔑 Login Ulang</a>`
+        : '';
       const s = await Snapshot.muat().catch(() => null);
       if (s) {
         data = s;
-        $id('pesan').innerHTML = `<div class="info info-kuning">📴 Mode offline — menampilkan snapshot tarik data terakhir (${s._waktu ? new Date(s._waktu).toLocaleString('id-ID') : '-'}). ${Admin.offlineSesi ? 'Sesi login offline: tarik data baru perlu online.' : ''}</div>`;
+        $id('pesan').innerHTML = sesiHabis
+          ? `<div class="info info-merah">Sesi admin berakhir — menampilkan snapshot terakhir.${tombolLogin}</div>`
+          : `<div class="info info-kuning">📴 Mode offline — menampilkan snapshot tarik data terakhir (${s._waktu ? new Date(s._waktu).toLocaleString('id-ID') : '-'}). ${Admin.offlineSesi ? 'Sesi login offline: tarik data baru perlu online.' : ''}</div>`;
       }
-      else { $id('pesan').innerHTML = `<div class="info info-merah">${esc(e.message)} — dan belum ada snapshot offline. Login online lalu Tarik Data terlebih dahulu.</div>`; return; }
+      else { $id('pesan').innerHTML = `<div class="info info-merah">${esc(e.message)}${tombolLogin}${sesiHabis ? '' : ' — dan belum ada snapshot offline. Login online lalu Tarik Data terlebih dahulu.'}</div>`; return; }
     }
     pengaturan = Object.assign({}, PENGATURAN_DEFAULT, data.pengaturan || {});
     isiFilter(); refresh();

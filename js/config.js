@@ -204,6 +204,11 @@ function objekKeForm(container, data) {
   });
 }
 function debounce(fn, ms) { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; }
+/* ID unik per kiriman — dipakai server utk menolak duplikat saat kirim ulang dari antrean */
+function idKirimBaru() {
+  return (crypto && crypto.randomUUID) ? crypto.randomUUID()
+    : Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
+}
 
 // ---------- Pengaturan (kategori, kelompok baseline) ----------
 let _pengaturan = null;

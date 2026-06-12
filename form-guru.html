@@ -245,12 +245,15 @@
         nama: $id('namaGuru').value.trim(), status: $id('status').value, pangkat: $id('pangkat').value.trim(),
         nip: $id('nip').value.trim(), mapel: $id('mapel').value.trim(), hp: $id('hpGuru').value.trim(),
         bulan: $id('bulan').value
-      }, nilai, links
+      }, nilai, links,
+      // anti-duplikat: ID sama dipakai utk kirim ulang (manual maupun dari antrean)
+      idKirim: (window._idKirim = window._idKirim || idKirimBaru())
     };
     const btn = $id('kirim');
     btn.disabled = true; btn.innerHTML = '<span class="muat"></span> Mengirim...';
     try {
       const r = await apiPost('submitguru', { data, auth: Pengguna.auth });
+      window._idKirim = null; // sukses → ID berikutnya baru
       await Draft.hapus(kunciDraft);
       $id('konten').innerHTML = `<div class="kartu" style="text-align:center;padding:3rem">
         <div style="font-size:3rem">✅</div><h3>Penilaian guru berhasil disimpan</h3>
