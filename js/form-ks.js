@@ -40,9 +40,9 @@
         <div><label>Nama Kepala Sekolah</label><input id="ks"></div>
         <div><label>Nomor HP Kepala Sekolah</label><input id="hpKS"></div>
         <div><label>NIP Kepala Sekolah</label><input id="nipKS" placeholder="NIP kepala sekolah"></div>
-        <div><label>Nama Pengawas</label><input id="pengawas"></div>
+        <div><label>Nama Pengawas 🔒</label><input id="pengawas" readonly title="Diambil dari akun pengawas yang login — tidak dapat diedit"></div>
         <div><label>Nomor HP Pengawas</label><input id="hpPengawas"></div>
-        <div><label>NIP Pengawas</label><input id="nipPengawas" placeholder="NIP pengawas"></div>
+        <div><label>NIP Pengawas 🔒</label><input id="nipPengawas" readonly title="Diambil dari akun pengawas (username) — tidak dapat diedit"></div>
       </div>
       <p class="info info-kuning" style="margin:.6rem 0">🔄 Perbaikan pada kolom identitas di atas akan <b>memperbarui data sekolah di MASTER_SEKOLAH</b> secara otomatis saat penilaian dikirim.</p>
       <div class="baris">
@@ -92,8 +92,7 @@
       location.reload();
     };
     barAkun($id('akunBar'), 'Pengawas — hanya sekolah binaan Anda yang tampil');
-    $id('pengawas').value = akun.nama || '';
-    $id('hpPengawas').value = akun.hp || '';
+    kunciPengawas();
     const simpanDraft = debounce(async () => {
       await Draft.simpan(kunciDraft, formKeObjek(c));
       $id('infoDraft').innerHTML = `<div class="info info-hijau">💾 Isian tersimpan otomatis di perangkat ini (${new Date().toLocaleTimeString('id-ID')}) — aman walau internet terputus.</div>`;
@@ -143,9 +142,16 @@
         .map(s => ({ value: s.npsn, label: s.sekolah }))),
       '— pilih sekolah —');
   }
+  /* nama & NIP pengawas SELALU dari akun login (AKUN_PENGAWAS) — terkunci */
+  function kunciPengawas() {
+    $id('pengawas').value = akun.nama || '';
+    $id('nipPengawas').value = akun.username || ''; // username pengawas = NIP
+    if (!$id('hpPengawas').value) $id('hpPengawas').value = akun.hp || '';
+  }
   function modeManual() {
-    // kosongkan kolom identitas agar diketik manual, arahkan kursor ke NPSN
-    ['npsn','namaSekolah','jenjang','namaKecamatan','ks','hpKS','nipKS','pengawas','hpPengawas','nipPengawas'].forEach(k => $id(k).value = '');
+    // kosongkan kolom identitas agar diketik manual (kecuali identitas pengawas yang terkunci)
+    ['npsn','namaSekolah','jenjang','namaKecamatan','ks','hpKS','nipKS'].forEach(k => $id(k).value = '');
+    kunciPengawas();
     if ($id('kecamatan').value && $id('kecamatan').value !== '__manual') $id('namaKecamatan').value = $id('kecamatan').value;
     tampilNotif('Mode ketik manual: isi NPSN, nama sekolah, dan identitas lainnya pada kolom di bawah.');
     $id('npsn').focus();
@@ -157,9 +163,9 @@
     $id('npsn').value = s.npsn; $id('namaSekolah').value = s.sekolah;
     $id('jenjang').value = s.jenjang; $id('namaKecamatan').value = s.kecamatan;
     $id('ks').value = s.ks; $id('hpKS').value = s.hpKS;
-    $id('pengawas').value = s.pengawas; $id('hpPengawas').value = s.hpPengawas;
+    $id('hpPengawas').value = s.hpPengawas || akun.hp || '';
     $id('nipKS').value = s.nipKS || '';
-    $id('nipPengawas').value = s.nipPengawas || akun.username || ''; // username pengawas = NIP
+    kunciPengawas(); // nama & NIP pengawas selalu dari akun login
   }
   function hitungRingkas() {
     const n = flatIndikator(kelompok).length;
@@ -179,6 +185,7 @@
     // pulihkan pilihan master dulu agar opsi sekolah terisi, lalu seluruh nilai
     if (d._f && d._f.kecamatan) { $id('kecamatan').value = d._f.kecamatan; isiSekolah(); }
     objekKeForm($id('konten'), d);
+    kunciPengawas(); // jangan biarkan draft menimpa identitas pengawas terkunci
     hitungRingkas();
     $id('infoDraft').innerHTML = `<div class="info info-hijau">♻️ Isian sebelumnya dipulihkan otomatis (tersimpan ${new Date(d._waktu).toLocaleString('id-ID')}). Lanjutkan pengisian, atau tekan "Kosongkan Isian" untuk mulai baru.</div>`;
   }
