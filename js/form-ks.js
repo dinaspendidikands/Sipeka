@@ -153,7 +153,7 @@
     ['npsn','namaSekolah','jenjang','namaKecamatan','ks','hpKS','nipKS'].forEach(k => $id(k).value = '');
     kunciPengawas();
     if ($id('kecamatan').value && $id('kecamatan').value !== '__manual') $id('namaKecamatan').value = $id('kecamatan').value;
-    tampilNotif('Mode ketik manual: isi NPSN, nama sekolah, dan identitas lainnya pada kolom di bawah.');
+    tampilNotif('Mode ketik manual: isi NPSN, nama sekolah, dan identitas lainnya — sekolah baru akan otomatis terdaftar di MASTER_SEKOLAH saat penilaian dikirim.');
     $id('npsn').focus();
   }
   function isiIdentitas() {
