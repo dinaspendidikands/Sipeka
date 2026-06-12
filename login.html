@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Login Penilai — SIPEKA</title>
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<header>
+  <div class="nav">
+    <a class="brand" href="index.html">
+      <div class="logo">DS</div>
+      <h1>SIPEKA Deli Serdang<small>Login Pengawas &amp; Kepala Sekolah</small></h1>
+    </a>
+    <nav><ul>
+      <li><a href="index.html">Beranda</a></li>
+      <li><a href="rapor.html">Rapor</a></li>
+      <li><a href="admin.html">Admin</a></li>
+    </ul></nav>
+  </div>
+</header>
+<main>
+  <!-- ===== FORM LOGIN ===== -->
+  <div id="halLogin" class="kartu" style="max-width:440px;margin:2.5rem auto">
+    <div style="text-align:center;margin-bottom:1rem">
+      <div style="font-size:2.4rem">🔑</div>
+      <h3>Login Penilai</h3>
+      <p style="color:var(--abu);font-size:.88rem">Pengawas menilai kepala sekolah binaan.<br>Kepala sekolah menilai guru di satuan pendidikannya.</p>
+    </div>
+    <div style="display:grid;gap:.8rem">
+      <div><label>Masuk sebagai</label>
+        <select id="peran">
+          <option value="pengawas">Pengawas (username = NIP)</option>
+          <option value="ks">Kepala Sekolah (username = NPSN)</option>
+        </select></div>
+      <div><label id="lblUser">Username (NIP)</label><input id="username" autocomplete="username" placeholder="ketik NIP tanpa spasi"></div>
+      <div><label>Password</label><input type="password" id="password" autocomplete="current-password" onkeydown="if(event.key==='Enter')masuk()"></div>
+      <button class="btn btn-biru" id="btnMasuk" onclick="masuk()">Masuk</button>
+      <p id="galat" style="color:var(--merah);font-size:.85rem"></p>
+      <p style="font-size:.8rem;color:var(--abu)">Lupa password? Hubungi admin Dinas untuk reset ke password awal.</p>
+    </div>
+  </div>
+
+  <!-- ===== SUDAH LOGIN / GANTI PASSWORD ===== -->
+  <div id="halAkun" style="display:none;max-width:520px;margin:2.5rem auto">
+    <div class="kartu">
+      <h3>👤 Akun Saya</h3>
+      <div id="profil" style="font-size:.92rem;margin:.6rem 0 1rem"></div>
+      <div id="wajibGanti"></div>
+      <h3 style="margin-top:1rem">Ganti Password</h3>
+      <div class="baris">
+        <div><label>Password baru (min. 6 karakter)</label><input type="password" id="pwBaru"></div>
+        <div><label>Ulangi password baru</label><input type="password" id="pwUlang"></div>
+      </div>
+      <div style="display:flex;gap:.6rem;margin-top:.8rem;flex-wrap:wrap">
+        <button class="btn btn-hijau" id="btnGanti" onclick="gantiPw()">💾 Simpan Password Baru</button>
+        <a class="btn btn-biru" id="btnLanjut" href="#" style="display:none">Lanjut ke Form Penilaian →</a>
+        <button class="btn btn-abu" onclick="Pengguna.keluar()">Keluar</button>
+      </div>
+    </div>
+  </div>
+</main>
+<div id="notif"></div>
+<footer>© 2026 Dinas Pendidikan Kabupaten Deli Serdang — SIPEKA</footer>
+<script src="js/indikator.js"></script>
+<script src="js/config.js"></script>
+<script>
+const qs = new URLSearchParams(location.search);
+const targetForm = { pengawas: 'form-ks-sd-smp.html', ks: 'form-guru.html' };
+
+function notif(p, merah) {
+  const n = $id('notif'); n.textContent = p; n.style.display = 'block';
+  n.style.background = merah ? 'var(--merah)' : 'var(--biru-tua)';
+  setTimeout(() => n.style.display = 'none', 5000);
+}
+
+function aturLabel() {
+  $id('lblUser').textContent = $id('peran').value === 'pengawas' ? 'Username (NIP)' : 'Username (NPSN)';
+  $id('username').placeholder = $id('peran').value === 'pengawas' ? 'ketik NIP tanpa spasi' : 'ketik NPSN sekolah';
+}
+
+async function masuk() {
+  const btn = $id('btnMasuk');
+  btn.disabled = true; btn.innerHTML = '<span class="muat"></span> Memeriksa…';
+  try {
+    const r = await apiPost('loginuser', {
+      peran: $id('peran').value,
+      username: $id('username').value.trim(),
+      password: $id('password').value
+    });
+    Pengguna.data = r;
+    if (!r.wajibGanti) {
+      const next = qs.get('next');
+      if (next && next !== 'login.html') { location.href = next; return; }
+    }
+    tampilAkun();
+  } catch (e) { $id('galat').textContent = e.message; }
+  btn.disabled = false; btn.textContent = 'Masuk';
+}
+
+function tampilAkun() {
+  const d = Pengguna.data;
+  $id('halLogin').style.display = 'none';
+  $id('halAkun').style.display = '';
+  const peranTeks = d.peran === 'pengawas' ? 'Pengawas' : 'Kepala Sekolah';
+  let info = `<b>${esc(d.nama)}</b> — ${peranTeks}<br>Username: <b>${esc(d.username)}</b>`;
+  if (d.peran === 'pengawas') info += `<br>Sekolah binaan terdaftar: <b>${(d.binaan || []).length}</b> sekolah`;
+  else if (d.profil) info += `<br>Satuan pendidikan: <b>${esc(d.profil.sekolah)}</b> (${esc(d.profil.jenjang || '-')})`;
+  $id('profil').innerHTML = info;
+  $id('wajibGanti').innerHTML = d.wajibGanti
+    ? '<div class="info info-kuning">⚠ Password Anda masih password awal dari admin — <b>wajib diganti</b> sebelum melanjutkan.</div>' : '';
+  const next = qs.get('next') || targetForm[d.peran];
+  const btnL = $id('btnLanjut');
+  btnL.href = next;
+  btnL.style.display = d.wajibGanti ? 'none' : '';
+}
+
+async function gantiPw() {
+  const baru = $id('pwBaru').value, ulang = $id('pwUlang').value;
+  if (baru.length < 6) return notif('Password minimal 6 karakter', true);
+  if (baru !== ulang) return notif('Ulangi password tidak sama', true);
+  const btn = $id('btnGanti');
+  btn.disabled = true; btn.innerHTML = '<span class="muat"></span> Menyimpan…';
+  try {
+    await apiPost('gantipassworduser', { auth: Pengguna.auth, passwordBaru: baru });
+    const d = Pengguna.data; d.wajibGanti = false; Pengguna.data = d;
+    $id('pwBaru').value = ''; $id('pwUlang').value = '';
+    notif('✅ Password berhasil diganti.');
+    tampilAkun();
+  } catch (e) { notif('Gagal: ' + e.message, true); }
+  btn.disabled = false; btn.innerHTML = '💾 Simpan Password Baru';
+}
+
+$id('peran').onchange = aturLabel;
+const p = qs.get('peran'); if (p === 'ks' || p === 'pengawas') { $id('peran').value = p; }
+aturLabel();
+if (Pengguna.aktif) tampilAkun();
+</script>
+</body>
+</html>

@@ -33,11 +33,16 @@
 <script src="js/config.js"></script>
 <script>
 (function () {
+  /* wajib login sebagai KEPALA SEKOLAH; hanya guru di satuan pendidikannya */
+  if (!Pengguna.wajib('ks')) return;
+  const akun = Pengguna.data;
+  if (akun.wajibGanti) { location.href = 'login.html?next=form-guru.html'; return; }
   let masterSekolah = [], guruSekolah = [];
   const kunciDraft = 'guru';
 
   function render() {
     let html = `
+    <div id="akunBar"></div>
     <div id="antrean"></div>
     <div id="infoDraft"></div>
     <div class="kartu">
@@ -45,12 +50,11 @@
         <span class="tag tag-kuning" style="margin-left:.5rem">✏️ semua kolom dapat diperbaiki jika ada kesalahan</span></h3>
       <div class="baris">
         <div><label>Email Penilai (Kepala Sekolah)</label><input type="email" id="email" placeholder="nama@sekolah.belajar.id" required></div>
-        <div><label>Pilih dari Master — Kecamatan</label><select id="kecamatan"></select></div>
-        <div><label>Pilih dari Master — Sekolah</label><select id="sekolah"></select></div>
+        <div style="display:none"><select id="kecamatan"></select><select id="sekolah"></select></div>
         <div><label>Bulan Penilaian</label><select id="bulan">${BULAN_LIST.map(b=>`<option>${b}</option>`).join('')}</select></div>
       </div>
-      <p class="info info-biru" style="margin:.6rem 0">Memilih sekolah/guru akan mengisi kolom di bawah otomatis. Jika ada data yang keliru,
-        <b>perbaiki langsung di kolomnya</b> — data yang dikirim adalah isi kolom di bawah.</p>
+      <p class="info info-biru" style="margin:.6rem 0">Identitas sekolah terkunci pada satuan pendidikan Anda (sesuai akun). Memilih guru akan mengisi kolom otomatis;
+        jika ada data yang keliru, <b>perbaiki langsung di kolomnya</b> — data yang dikirim adalah isi kolom di bawah.</p>
       <div class="baris">
         <div><label>NPSN</label><input id="npsn"></div>
         <div><label>Satuan Pendidikan (Nama Sekolah)</label><input id="namaSekolah"></div>
@@ -105,8 +109,6 @@
       <button class="btn btn-biru" id="kirim">📤 Kirim Penilaian</button></div>`;
     $id('konten').innerHTML = html;
 
-    $id('kecamatan').onchange = isiSekolah;
-    $id('sekolah').onchange = pilihSekolah;
     $id('guru').onchange = pilihGuru;
     $id('kirim').onclick = kirim;
     $id('hapusDraft').onclick = async () => {
@@ -123,38 +125,28 @@
   }
 
   async function muatMaster() {
-    try {
-      masterSekolah = (await apiGet('master')).sekolah;
-    } catch (e) {
-      const s = await Snapshot.muat().catch(() => null);
-      if (s && s.master) {
-        masterSekolah = s.master.sekolah;
-        $id('pesan').innerHTML = '<div class="info info-kuning">📶 Offline — daftar sekolah dimuat dari snapshot. Anda tetap bisa mengisi & mengirim; jika gagal terkirim, isian masuk antrean kirim ulang.</div>';
-      } else {
-        $id('pesan').innerHTML = `<div class="info info-kuning">Tidak dapat memuat master data (${esc(e.message)}).<br>
-          Anda <b>tetap bisa mengisi formulir</b> — ketik identitas sekolah & guru secara manual. Isian tersimpan otomatis dan dapat dikirim ulang saat koneksi pulih.</div>`;
-      }
-    }
-    isiSelect($id('kecamatan'), [...new Set(masterSekolah.map(s => s.kecamatan))].sort(), '— pilih kecamatan —');
-    isiSelect($id('sekolah'), [], '— pilih kecamatan dahulu —');
+    barAkun($id('akunBar'), 'Kepala Sekolah — penilaian guru di satuan pendidikan Anda');
+    // identitas sekolah terkunci pada akun KS yang login
+    const p = akun.profil || {};
+    $id('npsn').value = p.npsn || akun.username;
+    $id('namaSekolah').value = p.sekolah || '';
+    $id('jenjang').value = p.jenjang || '';
+    $id('namaKecamatan').value = p.kecamatan || '';
+    $id('ks').value = p.ks || akun.nama || '';
+    $id('hpKS').value = p.hpKS || '';
+    await muatGuru();
     await pulihkanDraft();
     tampilAntrean();
   }
-  function isiSekolah() {
-    isiSelect($id('sekolah'),
-      masterSekolah.filter(s => s.kecamatan === $id('kecamatan').value).map(s => ({ value: s.npsn, label: s.sekolah })),
-      '— pilih sekolah —');
-  }
-  async function pilihSekolah() {
-    const s = masterSekolah.find(x => x.npsn === $id('sekolah').value);
-    if (s) {
-      $id('npsn').value = s.npsn; $id('namaSekolah').value = s.sekolah;
-      $id('jenjang').value = s.jenjang; $id('namaKecamatan').value = s.kecamatan;
-      $id('ks').value = s.ks; $id('hpKS').value = s.hpKS;
-    }
+  async function muatGuru() {
     isiSelect($id('guru'), [{ value: '', label: '— memuat... —' }]);
     guruSekolah = [];
-    if (s) { try { guruSekolah = (await apiGet('gurusekolah', { npsn: s.npsn })).guru; } catch (e) {} }
+    const npsn = $id('npsn').value;
+    try { guruSekolah = (await apiGet('gurusekolah', { npsn })).guru; }
+    catch (e) {
+      const s = await Snapshot.muat().catch(() => null);
+      $id('pesan').innerHTML = '<div class="info info-kuning">📴 Offline — Anda tetap bisa mengisi & mengirim; jika gagal terkirim, isian masuk antrean kirim ulang. Identitas guru dapat diketik manual.</div>';
+    }
     isiSelect($id('guru'),
       [{ value: '-1', label: '— isi manual —' }].concat(guruSekolah.map((g, i) => ({ value: i, label: g.nama }))),
       '— pilih guru —');
@@ -199,8 +191,8 @@
   async function pulihkanDraft() {
     const d = await Draft.muat(kunciDraft).catch(() => null);
     if (!d) return;
-    if (d._f && d._f.kecamatan) { $id('kecamatan').value = d._f.kecamatan; isiSekolah(); }
     objekKeForm($id('konten'), d);
+    $id('npsn').value = (akun.profil && akun.profil.npsn) || akun.username; // tetap terkunci ke akun
     hitung();
     $id('infoDraft').innerHTML = `<div class="info info-hijau">♻️ Isian sebelumnya dipulihkan otomatis (tersimpan ${new Date(d._waktu).toLocaleString('id-ID')}). Lanjutkan pengisian, atau tekan "Kosongkan Isian" untuk mulai baru.</div>`;
   }
@@ -226,7 +218,7 @@
 
   async function kirim() {
     if (!$id('email').value) return tampilNotif('Email penilai wajib diisi', true);
-    if (!$id('npsn').value || !$id('namaSekolah').value) return tampilNotif('NPSN dan Nama Sekolah wajib diisi (pilih dari master atau ketik manual)', true);
+    if (!$id('npsn').value || !$id('namaSekolah').value) return tampilNotif('NPSN dan Nama Sekolah wajib diisi', true);
     if (!$id('namaGuru').value.trim()) return tampilNotif('Nama guru wajib diisi', true);
     const nilai = [], links = [];
     for (let gi = 0; gi < GURU_KELOMPOK.length; gi++) {
@@ -258,7 +250,7 @@
     const btn = $id('kirim');
     btn.disabled = true; btn.innerHTML = '<span class="muat"></span> Mengirim...';
     try {
-      const r = await apiPost('submitguru', { data });
+      const r = await apiPost('submitguru', { data, auth: Pengguna.auth });
       await Draft.hapus(kunciDraft);
       $id('konten').innerHTML = `<div class="kartu" style="text-align:center;padding:3rem">
         <div style="font-size:3rem">✅</div><h3>Penilaian guru berhasil disimpan</h3>
@@ -269,7 +261,7 @@
           <a class="btn btn-abu" href="rapor.html">Cetak Rapor</a></p></div>`;
       scrollTo(0, 0);
     } catch (e) {
-      await Outbox.tambah({ action: 'submitguru', data, ket: data.ident.nama + ' — ' + data.ident.bulan });
+      await Outbox.tambah({ action: 'submitguru', data, auth: Pengguna.auth, ket: data.ident.nama + ' — ' + data.ident.bulan });
       await Draft.hapus(kunciDraft);
       tampilNotif('⚠ Gagal terkirim (' + e.message + '). Penilaian disimpan di antrean dan akan dikirim ulang otomatis saat koneksi pulih.', true);
       btn.disabled = false; btn.innerHTML = '📤 Kirim Penilaian';

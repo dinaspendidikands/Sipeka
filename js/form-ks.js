@@ -3,6 +3,10 @@
    Fitur: identitas dapat diperbaiki, draft otomatis (tidak hilang saat
    internet mati), antrean kirim ulang otomatis saat online kembali. */
 (function () {
+  /* wajib login sebagai PENGAWAS; hanya sekolah binaan yang bisa dinilai */
+  if (!Pengguna.wajib('pengawas')) return;
+  const akun = Pengguna.data;
+  if (akun.wajibGanti) { location.href = 'login.html?next=' + encodeURIComponent(location.pathname.split('/').pop()); return; }
   const paud = window.JENIS_FORM === 'paud';
   const kunciDraft = paud ? 'paud' : 'sdsmp';
   const aksiSubmit = paud ? 'submitpaud' : 'submitks';
@@ -12,6 +16,7 @@
   function render() {
     const c = $id('konten');
     let html = `
+    <div id="akunBar"></div>
     <div id="antrean"></div>
     <div id="infoDraft"></div>
     <div class="kartu">
@@ -83,6 +88,9 @@
       await Draft.hapus(kunciDraft);
       location.reload();
     };
+    barAkun($id('akunBar'), 'Pengawas — hanya sekolah binaan Anda yang tampil');
+    $id('pengawas').value = akun.nama || '';
+    $id('hpPengawas').value = akun.hp || '';
     const simpanDraft = debounce(async () => {
       await Draft.simpan(kunciDraft, formKeObjek(c));
       $id('infoDraft').innerHTML = `<div class="info info-hijau">💾 Isian tersimpan otomatis di perangkat ini (${new Date().toLocaleTimeString('id-ID')}) — aman walau internet terputus.</div>`;
@@ -104,10 +112,12 @@
           Anda <b>tetap bisa mengisi formulir</b> — ketik identitas sekolah secara manual di kolom yang tersedia. Isian tersimpan otomatis dan dapat dikirim ulang saat koneksi pulih.</div>`;
       }
     }
+    if (!masterSekolah.length && akun.binaan) masterSekolah = akun.binaan; // cadangan dari sesi login
     masterSekolah = masterSekolah.filter(s => {
       const j = String(s.jenjang).toUpperCase();
       const isSDSMP = j === 'SD' || j === 'SMP';
-      return paud ? !isSDSMP : isSDSMP;
+      const binaan = String(s.pengawas || '').trim().toLowerCase() === String(akun.nama || '').trim().toLowerCase();
+      return binaan && (paud ? !isSDSMP : isSDSMP);
     });
     const MANUAL = { value: '__manual', label: '✏️ Ketik manual (tidak ada di daftar)' };
     isiSelect($id('kecamatan'),
@@ -211,7 +221,7 @@
     const btn = $id('kirim');
     btn.disabled = true; btn.innerHTML = '<span class="muat"></span> Mengirim...';
     try {
-      const r = await apiPost(aksiSubmit, { data });
+      const r = await apiPost(aksiSubmit, { data, auth: Pengguna.auth });
       await Draft.hapus(kunciDraft);
       $id('konten').innerHTML = `<div class="kartu" style="text-align:center;padding:3rem">
         <div style="font-size:3rem">✅</div>
@@ -225,7 +235,7 @@
       scrollTo(0, 0);
     } catch (e) {
       // gagal (internet mati / padat / server) → simpan ke antrean, isian tetap aman
-      await Outbox.tambah({ action: aksiSubmit, data, ket: data.ident.sekolah + ' — ' + data.ident.bulan });
+      await Outbox.tambah({ action: aksiSubmit, data, auth: Pengguna.auth, ket: data.ident.sekolah + ' — ' + data.ident.bulan });
       await Draft.hapus(kunciDraft);
       tampilNotif('⚠ Gagal terkirim (' + e.message + '). Penilaian disimpan di antrean dan akan dikirim ulang otomatis saat koneksi pulih.', true);
       btn.disabled = false; btn.innerHTML = '📤 Kirim Penilaian';

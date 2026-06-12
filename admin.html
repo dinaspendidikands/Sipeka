@@ -58,6 +58,26 @@
     </div>
 
     <div class="kartu">
+      <h3>👥 Akun Pengawas &amp; Kepala Sekolah</h3>
+      <p style="font-size:.85rem;color:var(--abu);margin-bottom:.8rem">
+        Akun KS: username = <b>NPSN</b> (dibuat dari MASTER_SEKOLAH). Akun pengawas: username = <b>NIP</b> —
+        setelah generate, isi kolom NIP di sheet <code>AKUN_PENGAWAS</code> agar pengawas bisa login.
+        Pengguna wajib mengganti password awal saat pertama login.</p>
+      <div class="baris">
+        <div><label>Peran</label><select id="akunPeran">
+          <option value="pengawas">Pengawas</option><option value="ks">Kepala Sekolah</option></select></div>
+        <div><label>Password awal seragam (min. 6)</label><input id="pwAwal" placeholder="mis. sipeka2026"></div>
+        <div style="display:flex;align-items:flex-end"><button class="btn btn-biru" id="btnGenerate">⚙ Generate Akun Massal</button></div>
+      </div>
+      <hr style="border:none;border-top:1px solid #e4e9ef;margin:1rem 0">
+      <div class="baris">
+        <div><label>Reset password — username (NIP/NPSN)</label><input id="resetUser" placeholder="ketik NIP pengawas atau NPSN sekolah"></div>
+        <div style="display:flex;align-items:flex-end"><button class="btn btn-kuning" id="btnReset">♻ Reset ke Password Awal</button></div>
+      </div>
+      <p id="hasilAkun" style="font-size:.85rem;margin-top:.6rem"></p>
+    </div>
+
+    <div class="kartu">
       <h3>Ganti Password Admin</h3>
       <div class="baris">
         <div><label>Password baru (min. 6 karakter)</label><input type="password" id="passBaru"></div>
@@ -184,6 +204,34 @@ document.addEventListener('DOMContentLoaded', () => {
       notif('✅ Password admin berhasil diganti.');
     } catch (e) { notif('Gagal: ' + e.message, true); }
   };
+  // ----- akun pengawas & kepala sekolah -----
+  $id('btnGenerate').onclick = async () => {
+    const pw = $id('pwAwal').value;
+    if (pw.length < 6) return notif('Password awal minimal 6 karakter', true);
+    if (!confirm('Generate akun ' + ($id('akunPeran').value === 'ks' ? 'kepala sekolah (semua NPSN di master)' : 'pengawas (semua nama pengawas di master)') + ' dengan password awal "' + pw + '"?')) return;
+    const b = $id('btnGenerate');
+    b.disabled = true; b.innerHTML = '<span class="muat"></span> Membuat…';
+    try {
+      const r = await apiPost('admingenerateakun', { token: Admin.token, peran: $id('akunPeran').value, passwordAwal: pw });
+      $id('hasilAkun').innerHTML = `✅ <b>${r.baru}</b> akun baru dibuat. ${esc(r.catatan || '')}`;
+      notif('Generate akun selesai.');
+    } catch (e) { notif('Gagal: ' + e.message, true); }
+    b.disabled = false; b.innerHTML = '⚙ Generate Akun Massal';
+  };
+  $id('btnReset').onclick = async () => {
+    const u = $id('resetUser').value.trim();
+    if (!u) return notif('Isi username (NIP/NPSN) yang akan direset', true);
+    if (!confirm('Reset password akun "' + u + '" ke password awal?')) return;
+    const b = $id('btnReset');
+    b.disabled = true; b.innerHTML = '<span class="muat"></span> Mereset…';
+    try {
+      const r = await apiPost('adminresetpassword', { token: Admin.token, peran: $id('akunPeran').value, username: u });
+      $id('hasilAkun').innerHTML = `✅ Password <b>${esc(r.nama)}</b> (${esc(u)}) direset ke password awal — pengguna wajib menggantinya saat login.`;
+      notif('Reset password berhasil.');
+    } catch (e) { notif('Gagal: ' + e.message, true); }
+    b.disabled = false; b.innerHTML = '♻ Reset ke Password Awal';
+  };
+  if (Admin.offlineSesi) ['btnGenerate','btnReset'].forEach(i => $id(i).disabled = true);
   if (Admin.aktif) tampilkanPengaturan();
 });
 </script>

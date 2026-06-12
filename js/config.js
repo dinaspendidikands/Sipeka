@@ -67,6 +67,33 @@ const Admin = {
   keluar() { this.token = null; location.href = 'index.html'; }
 };
 
+// ---------- Sesi pengguna (pengawas / kepala sekolah) ----------
+const Pengguna = {
+  get data() { try { return JSON.parse(localStorage.getItem('sipeka_user')); } catch (e) { return null; } },
+  set data(v) { v ? localStorage.setItem('sipeka_user', JSON.stringify(v)) : localStorage.removeItem('sipeka_user'); },
+  get aktif() { return !!this.data; },
+  get auth() { const d = this.data; return d ? { peran: d.peran, username: d.username, kunci: d.kunci } : null; },
+  /* wajib login dgn peran tertentu; jika belum, arahkan ke halaman login */
+  wajib(peran) {
+    const d = this.data;
+    if (!d || d.peran !== peran) {
+      location.href = 'login.html?peran=' + peran + '&next=' + encodeURIComponent(location.pathname.split('/').pop());
+      return false;
+    }
+    return true;
+  },
+  keluar() { this.data = null; location.href = 'login.html'; }
+};
+/* bilah info akun di atas form */
+function barAkun(el, keterangan) {
+  const d = Pengguna.data;
+  if (!el || !d) return;
+  el.innerHTML = `<div class="info info-biru" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.5rem">
+    <span>👤 <b>${esc(d.nama)}</b> — ${esc(keterangan)} (username: ${esc(d.username)})</span>
+    <span><a href="login.html" style="font-weight:700">Ganti Password</a> &nbsp;|&nbsp;
+    <a href="#" onclick="Pengguna.keluar();return false" style="font-weight:700;color:var(--merah)">Keluar</a></span></div>`;
+}
+
 /* hash SHA-256 hex untuk verifikasi login offline (fallback bila crypto.subtle tak tersedia) */
 async function sha256Hex(s) {
   if (crypto && crypto.subtle) {
@@ -145,10 +172,15 @@ const Outbox = {
     let q = await this.semua(), terkirim = 0;
     for (const item of [...q]) {
       try {
-        await apiPost(item.action, { data: item.data });
+        await apiPost(item.action, { data: item.data, auth: item.auth || (Pengguna.aktif ? Pengguna.auth : null) });
         await this.hapus(item._id);
         terkirim++;
-      } catch (e) { /* biarkan di antrean, coba lagi nanti */ }
+      } catch (e) {
+        if (/login|sesi|berhak|binaan|satuan pendidikan/i.test(String(e.message))) {
+          /* ditolak server karena hak akses — jangan tahan selamanya */
+          item._galat = e.message;
+        }
+      }
     }
     return { terkirim, gagal: (await this.semua()).length };
   }
