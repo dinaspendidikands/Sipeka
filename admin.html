@@ -60,12 +60,13 @@
     <div class="kartu">
       <h3>👥 Akun Pengawas &amp; Kepala Sekolah</h3>
       <p style="font-size:.85rem;color:var(--abu);margin-bottom:.8rem">
-        Akun KS: username = <b>NPSN</b> (dibuat dari MASTER_SEKOLAH). Akun pengawas: username = <b>NIP</b> —
-        setelah generate, isi kolom NIP di sheet <code>AKUN_PENGAWAS</code> agar pengawas bisa login.
-        Pengguna wajib mengganti password awal saat pertama login.</p>
+        Akun KS: username = <b>NPSN</b>. Akun pengawas: username = <b>NIP</b> (isi kolom NIP di sheet <code>AKUN_PENGAWAS</code> setelah generate).
+        Akun <b>admin kecamatan</b>: username = <b>nama kecamatan</b> — dapat membuka & mengedit Hasil Penilaian se-kecamatannya.
+        Semua pengguna wajib mengganti password awal saat pertama login.</p>
       <div class="baris">
         <div><label>Peran</label><select id="akunPeran">
-          <option value="pengawas">Pengawas</option><option value="ks">Kepala Sekolah</option></select></div>
+          <option value="pengawas">Pengawas</option><option value="ks">Kepala Sekolah</option>
+          <option value="kecamatan">Admin Kecamatan</option></select></div>
         <div><label>Password awal seragam (min. 6)</label><input id="pwAwal" placeholder="mis. sipeka2026"></div>
         <div style="display:flex;align-items:flex-end"><button class="btn btn-biru" id="btnGenerate">⚙ Generate Akun Massal</button></div>
       </div>
@@ -208,7 +209,8 @@ document.addEventListener('DOMContentLoaded', () => {
   $id('btnGenerate').onclick = async () => {
     const pw = $id('pwAwal').value;
     if (pw.length < 6) return notif('Password awal minimal 6 karakter', true);
-    if (!confirm('Generate akun ' + ($id('akunPeran').value === 'ks' ? 'kepala sekolah (semua NPSN di master)' : 'pengawas (semua nama pengawas di master)') + ' dengan password awal "' + pw + '"?')) return;
+    const namaPeran = { ks: 'kepala sekolah (semua NPSN di master)', pengawas: 'pengawas (semua nama pengawas di master)', kecamatan: 'admin kecamatan (semua kecamatan di master)' };
+    if (!confirm('Generate akun ' + namaPeran[$id('akunPeran').value] + ' dengan password awal "' + pw + '"?')) return;
     const b = $id('btnGenerate');
     b.disabled = true; b.innerHTML = '<span class="muat"></span> Membuat…';
     try {

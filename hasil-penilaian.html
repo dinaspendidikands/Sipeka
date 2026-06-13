@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hasil Penilaian — SIPEKA</title>
+<link rel="stylesheet" href="css/app.css">
+<style>
+  .tab{display:flex;gap:.4rem;margin-bottom:1rem;flex-wrap:wrap}
+  .tab button{padding:.5rem 1.1rem;border:none;border-radius:999px;background:#e4e9ef;font-weight:700;cursor:pointer}
+  .tab button.aktif{background:var(--biru);color:#fff}
+</style>
+</head>
+<body>
+<header>
+  <div class="nav">
+    <a class="brand" href="index.html">
+      <div class="logo">DS</div>
+      <h1>SIPEKA Deli Serdang<small>Hasil Penilaian — Admin Kecamatan</small></h1>
+    </a>
+    <nav><ul>
+      <li><a href="index.html">Beranda</a></li>
+      <li><a href="hasil-penilaian.html" class="aktif">Hasil Penilaian</a></li>
+      <li><a href="rapor.html">Rapor</a></li>
+    </ul></nav>
+  </div>
+</header>
+<main>
+  <h2 class="judul-hal">📋 Hasil Penilaian</h2>
+  <p class="sub-hal">Hasil pengisian nilai kepala sekolah PAUD/TK, SD &amp; SMP, serta guru di kecamatan Anda. Klik <b>Edit</b> untuk memperbaiki nilai, link dokumentasi, dan catatan — nilai rata &amp; kinerja dihitung ulang otomatis.</p>
+  <div id="akunBar"></div>
+  <div id="pesan"></div>
+
+  <!-- ===== DAFTAR ===== -->
+  <div id="halDaftar">
+    <div class="tab">
+      <button id="tabPaud">KS PAUD/TK</button>
+      <button id="tabSdsmp" class="aktif">KS SD &amp; SMP</button>
+      <button id="tabGuru">Guru</button>
+    </div>
+    <div class="kartu">
+      <div class="baris">
+        <div><label>Bulan</label><select id="fBulan"></select></div>
+        <div><label>Cari (sekolah / nama)</label><input id="cari" placeholder="ketik untuk mencari…"></div>
+        <div style="display:flex;align-items:flex-end"><button class="btn btn-abu" id="muatUlang">⟳ Muat Ulang</button></div>
+      </div>
+    </div>
+    <div class="kartu"><div style="overflow-x:auto" id="tabel"><span class="muat"></span> Memuat data…</div></div>
+  </div>
+
+  <!-- ===== EDITOR ===== -->
+  <div id="halEdit" style="display:none"></div>
+</main>
+<div id="notif"></div>
+<footer>© 2026 Dinas Pendidikan Kabupaten Deli Serdang — SIPEKA</footer>
+<script src="js/indikator.js"></script>
+<script src="js/config.js"></script>
+<script>
+(function () {
+  if (!Pengguna.wajib('kecamatan')) return;
+  const akun = Pengguna.data;
+  if (akun.wajibGanti) { location.href = 'login.html?next=hasil-penilaian.html'; return; }
+
+  let data = { sdsmp: [], paud: [], guru: [] };
+  let tab = 'sdsmp';
+
+  function notif(p, merah) {
+    const n = $id('notif'); n.textContent = p; n.style.display = 'block';
+    n.style.background = merah ? 'var(--merah)' : 'var(--biru-tua)';
+    setTimeout(() => n.style.display = 'none', 5000);
+  }
+  function fmtWaktu(v) {
+    const d = new Date(v);
+    return isNaN(d) ? esc(String(v)) : d.toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'short' });
+  }
+
+  async function muat() {
+    $id('tabel').innerHTML = '<span class="muat"></span> Memuat data…';
+    try {
+      data = await apiGet('hasilkecamatan', { username: akun.username, kunci: akun.kunci });
+      $id('pesan').innerHTML = '';
+    } catch (e) {
+      $id('pesan').innerHTML = `<div class="info info-merah">Gagal memuat: ${esc(e.message)} — fitur ini membutuhkan koneksi internet.</div>`;
+      $id('tabel').innerHTML = '';
+      return;
+    }
+    isiFilter(); render();
+  }
+  function isiFilter() {
+    const L = tab === 'guru' ? layoutGuru() : layoutKS(tab);
+    const kolB = tab === 'guru' ? L.id.bulan : L.id.bulan;
+    const bln = [...new Set((data[tab] || []).map(x => x.row[kolB]))];
+    isiSelect($id('fBulan'), BULAN_LIST.filter(b => bln.includes(b)), 'Semua bulan');
+  }
+
+  function render() {
+    const cari = $id('cari').value.toLowerCase();
+    const bln = $id('fBulan').value;
+    let html = '';
+    if (tab === 'guru') {
+      const L = layoutGuru();
+      let rows = data.guru.filter(x => (!bln || x.row[L.id.bulan] === bln) &&
+        (!cari || (String(x.row[L.id.nama]) + String(x.row[L.id.sekolah])).toLowerCase().includes(cari)));
+      html = `<p style="font-size:.85rem;color:var(--abu)">${rows.length} pengisian — Kecamatan ${esc(akun.kecamatan || akun.username)}</p>
+        <table><tr><th>Nama Guru</th><th>Sekolah</th><th>Mapel</th><th>Bulan</th><th>Rata (%)</th><th>Waktu Isi</th><th>Aksi</th></tr>`;
+      rows.forEach(x => {
+        html += `<tr><td>${esc(x.row[L.id.nama])}</td><td>${esc(x.row[L.id.sekolah])}</td><td>${esc(x.row[L.id.mapel])}</td>
+          <td>${esc(x.row[L.id.bulan])}</td><td><b>${f2(angka(x.row[L.colRataAll]))}</b></td><td>${fmtWaktu(x.row[0])}</td>
+          <td><button class="btn btn-biru" style="padding:.3rem .9rem" onclick="bukaEditGuru(${x.baris})">✏️ Edit</button></td></tr>`;
+      });
+    } else {
+      const L = layoutKS(tab);
+      let rows = (data[tab] || []).filter(x => (!bln || x.row[L.id.bulan] === bln) &&
+        (!cari || (String(x.row[L.id.sekolah]) + String(x.row[L.id.ks])).toLowerCase().includes(cari)));
+      html = `<p style="font-size:.85rem;color:var(--abu)">${rows.length} pengisian — Kecamatan ${esc(akun.kecamatan || akun.username)}</p>
+        <table><tr><th>Sekolah</th><th>Kepala Sekolah</th>${tab === 'sdsmp' ? '<th>Periode</th>' : ''}<th>Bulan</th><th>Minggu</th>
+        <th>Rata Baseline</th><th>Rata Capaian</th><th>Kinerja</th><th>Waktu Isi</th><th>Aksi</th></tr>`;
+      rows.forEach(x => {
+        let rb = angka(x.row[L.colRataB]), rc = angka(x.row[L.colRataC]);
+        if (!rb) { // data lama tanpa agregat → hitung dari indikator
+          let sb = 0, sc = 0;
+          L.ind.forEach(i => { sb += angka(x.row[i.colB]); sc += angka(x.row[i.colC]); });
+          rb = sb / L.ind.length; rc = sc / L.ind.length;
+        }
+        html += `<tr><td>${esc(x.row[L.id.sekolah])}</td><td>${esc(x.row[L.id.ks])}</td>
+          ${tab === 'sdsmp' ? '<td>' + esc(x.row[L.id.periode]) + '</td>' : ''}
+          <td>${esc(x.row[L.id.bulan])}</td><td>${esc(x.row[L.id.minggu])}</td>
+          <td>${f2(rb)}</td><td>${f2(rc)}</td><td><b>${f2(rc - rb)}</b></td><td>${fmtWaktu(x.row[0])}</td>
+          <td><button class="btn btn-biru" style="padding:.3rem .9rem" onclick="bukaEditKS('${tab}',${x.baris})">✏️ Edit</button></td></tr>`;
+      });
+    }
+    $id('tabel').innerHTML = html + '</table>';
+  }
+
+  /* ============ EDITOR KS ============ */
+  window.bukaEditKS = function (jenis, baris) {
+    const x = data[jenis].find(d => d.baris === baris);
+    if (!x) return;
+    const L = layoutKS(jenis);
+    const row = x.row;
+    let html = `<div class="kartu">
+      <h3>✏️ Edit Penilaian KS ${jenis === 'paud' ? 'PAUD/TK' : 'SD & SMP'}</h3>
+      <p style="font-size:.9rem;margin:.5rem 0">
+        <b>${esc(row[L.id.sekolah])}</b> (NPSN ${esc(String(row[L.id.npsn]).replace(/^'/,''))}) — ${esc(row[L.id.ks])}<br>
+        ${jenis === 'sdsmp' ? esc(row[L.id.periode]) + ' · ' : ''}${esc(row[L.id.bulan])} · Minggu ${esc(row[L.id.minggu])} · diisi ${fmtWaktu(row[0])}</p>
+      <p class="info info-kuning">Identitas tidak dapat diubah. Ubah nilai (1–5), link dokumentasi, dan catatan — rata &amp; kinerja dihitung ulang otomatis saat disimpan.</p>
+    </div>`;
+    let idx = 0;
+    L.kelompok.forEach(g => {
+      html += `<div class="kartu"><h3>${esc(g.nama)}</h3><div style="overflow-x:auto"><table>
+        <tr><th style="width:42%">Indikator</th><th>Baseline</th><th>Target</th><th>Capaian</th><th style="width:26%">Link Dokumentasi</th></tr>`;
+      g.indikator.forEach(ind => {
+        const x2 = L.ind[idx];
+        const opsi = v => [1,2,3,4,5].map(n => `<option ${Number(v) === n ? 'selected' : ''}>${n}</option>`).join('');
+        html += `<tr><td><b>${ind.kode}</b> ${esc(ind.nama)}</td>
+          <td><select id="eb${idx}">${opsi(row[x2.colB])}</select></td>
+          <td><select id="et${idx}">${opsi(row[x2.colT])}</select></td>
+          <td><select id="ec${idx}">${opsi(row[x2.colC])}</select></td>
+          <td><input id="el${idx}" value="${esc(row[x2.colLink] || '')}"></td></tr>`;
+        idx++;
+      });
+      html += '</table></div></div>';
+    });
+    html += `<div class="kartu"><h3>Catatan dan Rekomendasi</h3>
+      <textarea id="eCatatan" rows="3">${esc(row[L.colCatatan] || '')}</textarea></div>
+      <div style="text-align:right;margin-bottom:2rem">
+        <button class="btn btn-abu" onclick="tutupEdit()">Batal</button>
+        <button class="btn btn-hijau" id="btnSimpanKS">💾 Simpan Perubahan</button>
+      </div>`;
+    tampilEditor(html);
+    $id('btnSimpanKS').onclick = async () => {
+      const nilai = [];
+      for (let i = 0; i < L.ind.length; i++)
+        nilai.push({ b: +$id('eb'+i).value, t: +$id('et'+i).value, c: +$id('ec'+i).value, link: $id('el'+i).value.trim() || '-' });
+      await simpan('editks', { jenis, baris, nilai, catatan: $id('eCatatan').value.trim() }, 'btnSimpanKS');
+    };
+  };
+
+  /* ============ EDITOR GURU ============ */
+  window.bukaEditGuru = function (baris) {
+    const x = data.guru.find(d => d.baris === baris);
+    if (!x) return;
+    const L = layoutGuru();
+    const row = x.row;
+    let html = `<div class="kartu">
+      <h3>✏️ Edit Penilaian Guru</h3>
+      <p style="font-size:.9rem;margin:.5rem 0"><b>${esc(row[L.id.nama])}</b> — ${esc(row[L.id.sekolah])} · ${esc(row[L.id.bulan])} · diisi ${fmtWaktu(row[0])}</p>
+      <p class="info info-kuning">Identitas tidak dapat diubah. Butir checklist: Ya/Tidak; butir <b>survey</b>: skor 0–1 (mis. 0,85). Nilai % dihitung ulang otomatis.</p>
+    </div>`;
+    L.grup.forEach((g, gi) => {
+      const nSkor = GURU_KELOMPOK[gi].skor || 0;
+      html += `<div class="kartu"><h3>${esc(g.nama)}</h3><table>
+        <tr><th>Butir Observasi</th><th style="width:150px">Penilaian</th></tr>`;
+      g.butir.forEach((b, bi) => {
+        const v = row[g.cols[bi]];
+        if (bi < nSkor) {
+          html += `<tr><td>${esc(b)} <span class="tag tag-biru">survey 0–1</span></td>
+            <td><input id="eg${gi}s${bi}" value="${esc(String(v).replace('.', ','))}" style="text-align:center" maxlength="4"></td></tr>`;
+        } else {
+          html += `<tr><td>${esc(b)}</td><td><div class="skala">
+            <label><input type="radio" name="eg${gi}b${bi}" value="1" ${Number(v) >= 1 ? 'checked' : ''}> Ya</label>
+            <label><input type="radio" name="eg${gi}b${bi}" value="0" ${Number(v) < 1 ? 'checked' : ''}> Tidak</label>
+          </div></td></tr>`;
+        }
+      });
+      html += `</table><div style="margin-top:.7rem"><label>Link Bukti Dukung</label>
+        <input id="elink${gi}" value="${esc(row[g.colLink] || '')}"></div></div>`;
+    });
+    html += `<div style="text-align:right;margin-bottom:2rem">
+      <button class="btn btn-abu" onclick="tutupEdit()">Batal</button>
+      <button class="btn btn-hijau" id="btnSimpanGuru">💾 Simpan Perubahan</button></div>`;
+    tampilEditor(html);
+    $id('btnSimpanGuru').onclick = async () => {
+      const nilai = [], links = [];
+      for (let gi = 0; gi < L.grup.length; gi++) {
+        const nSkor = GURU_KELOMPOK[gi].skor || 0;
+        const arr = [];
+        for (let bi = 0; bi < L.grup[gi].butir.length; bi++) {
+          if (bi < nSkor) {
+            const t = $id(`eg${gi}s${bi}`).value.trim().replace(',', '.');
+            const n = parseFloat(t);
+            if (t === '' || isNaN(n) || n < 0 || n > 1)
+              return notif(`Kelompok ${gi + 1}, survey ke-${bi + 1}: isi nilai 0–1 (contoh 0,85)`, true);
+            arr.push(Math.round(n * 100) / 100);
+          } else {
+            const v = document.querySelector(`input[name="eg${gi}b${bi}"]:checked`);
+            arr.push(v ? +v.value : 0);
+          }
+        }
+        nilai.push(arr);
+        links.push($id('elink' + gi).value.trim() || '-');
+      }
+      await simpan('editguru', { baris, nilai, links }, 'btnSimpanGuru');
+    };
+  };
+
+  function tampilEditor(html) {
+    $id('halDaftar').style.display = 'none';
+    $id('halEdit').style.display = '';
+    $id('halEdit').innerHTML = html;
+    scrollTo(0, 0);
+  }
+  window.tutupEdit = function () {
+    $id('halEdit').style.display = 'none';
+    $id('halDaftar').style.display = '';
+  };
+  async function simpan(aksi, payload, idBtn) {
+    const b = $id(idBtn);
+    b.disabled = true; b.innerHTML = '<span class="muat"></span> Menyimpan…';
+    try {
+      const r = await apiPost(aksi, Object.assign({ auth: Pengguna.auth }, payload));
+      notif('✅ Perubahan tersimpan.' + (r.rataCapaian != null ? ` Rata Capaian ${f2(r.rataCapaian)} · Kinerja ${f2(r.kinerja)}` : r.rataKeseluruhan != null ? ` Rata ${f2(r.rataKeseluruhan)}%` : ''));
+      tutupEdit();
+      await muat();
+    } catch (e) {
+      notif('Gagal menyimpan: ' + e.message, true);
+      b.disabled = false; b.innerHTML = '💾 Simpan Perubahan';
+    }
+  }
+
+  /* ============ NAVIGASI ============ */
+  function gantiTab(t, btn) {
+    tab = t;
+    ['tabPaud','tabSdsmp','tabGuru'].forEach(i => $id(i).classList.remove('aktif'));
+    btn.classList.add('aktif');
+    isiFilter(); render();
+  }
+  $id('tabPaud').onclick = e => gantiTab('paud', e.target);
+  $id('tabSdsmp').onclick = e => gantiTab('sdsmp', e.target);
+  $id('tabGuru').onclick = e => gantiTab('guru', e.target);
+  $id('fBulan').onchange = render;
+  $id('cari').oninput = render;
+  $id('muatUlang').onclick = muat;
+
+  barAkun($id('akunBar'), 'Admin Kecamatan ' + (akun.kecamatan || akun.username));
+  muat();
+})();
+</script>
+</body>
+</html>

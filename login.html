@@ -32,6 +32,7 @@
         <select id="peran">
           <option value="pengawas">Pengawas (username = NIP)</option>
           <option value="ks">Kepala Sekolah (username = NPSN)</option>
+          <option value="kecamatan">Admin Kecamatan (username = nama kecamatan)</option>
         </select></div>
       <div><label id="lblUser">Username (NIP)</label><input id="username" autocomplete="username" placeholder="ketik NIP tanpa spasi"></div>
       <div><label>Password</label><input type="password" id="password" autocomplete="current-password" onkeydown="if(event.key==='Enter')masuk()"></div>
@@ -66,7 +67,7 @@
 <script src="js/config.js"></script>
 <script>
 const qs = new URLSearchParams(location.search);
-const targetForm = { pengawas: 'form-ks-sd-smp.html', ks: 'form-guru.html' };
+const targetForm = { pengawas: 'form-ks-sd-smp.html', ks: 'form-guru.html', kecamatan: 'hasil-penilaian.html' };
 
 function notif(p, merah) {
   const n = $id('notif'); n.textContent = p; n.style.display = 'block';
@@ -75,8 +76,9 @@ function notif(p, merah) {
 }
 
 function aturLabel() {
-  $id('lblUser').textContent = $id('peran').value === 'pengawas' ? 'Username (NIP)' : 'Username (NPSN)';
-  $id('username').placeholder = $id('peran').value === 'pengawas' ? 'ketik NIP tanpa spasi' : 'ketik NPSN sekolah';
+  const p = $id('peran').value;
+  $id('lblUser').textContent = p === 'pengawas' ? 'Username (NIP)' : p === 'kecamatan' ? 'Username (nama kecamatan)' : 'Username (NPSN)';
+  $id('username').placeholder = p === 'pengawas' ? 'ketik NIP tanpa spasi' : p === 'kecamatan' ? 'mis. Lubuk Pakam / lubukpakam' : 'ketik NPSN sekolah';
 }
 
 async function masuk() {
@@ -102,9 +104,10 @@ function tampilAkun() {
   const d = Pengguna.data;
   $id('halLogin').style.display = 'none';
   $id('halAkun').style.display = '';
-  const peranTeks = d.peran === 'pengawas' ? 'Pengawas' : 'Kepala Sekolah';
+  const peranTeks = d.peran === 'pengawas' ? 'Pengawas' : d.peran === 'kecamatan' ? 'Admin Kecamatan' : 'Kepala Sekolah';
   let info = `<b>${esc(d.nama)}</b> — ${peranTeks}<br>Username: <b>${esc(d.username)}</b>`;
   if (d.peran === 'pengawas') info += `<br>Sekolah binaan terdaftar: <b>${(d.binaan || []).length}</b> sekolah`;
+  else if (d.peran === 'kecamatan') info += `<br>Wilayah: <b>Kecamatan ${esc(d.kecamatan)}</b> — halaman: <b>Hasil Penilaian</b>`;
   else if (d.profil) info += `<br>Satuan pendidikan: <b>${esc(d.profil.sekolah)}</b> (${esc(d.profil.jenjang || '-')})`;
   $id('profil').innerHTML = info;
   $id('wajibGanti').innerHTML = d.wajibGanti
