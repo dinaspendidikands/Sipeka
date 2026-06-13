@@ -44,6 +44,7 @@ td select{padding:.35rem .4rem}
 .btn-hijau{background:var(--hijau);color:#fff}
 .btn-abu{background:#e4e9ef;color:#33475b}
 .btn-kuning{background:var(--kuning);color:#3a2a00}
+.btn-merah{background:var(--merah);color:#fff}
 .btn:disabled{opacity:.55;cursor:not-allowed}
 
 .tag{display:inline-block;font-size:.7rem;font-weight:700;padding:.16rem .6rem;border-radius:999px}

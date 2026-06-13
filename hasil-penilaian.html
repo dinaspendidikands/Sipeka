@@ -15,7 +15,7 @@
   <div class="nav">
     <a class="brand" href="index.html">
       <div class="logo">DS</div>
-      <h1>SIPEKA Deli Serdang<small>Hasil Penilaian — Admin Kecamatan</small></h1>
+      <h1>SIPEKA Deli Serdang<small>Hasil Penilaian — Admin Kecamatan &amp; Dinas</small></h1>
     </a>
     <nav><ul>
       <li><a href="index.html">Beranda</a></li>
@@ -26,12 +26,18 @@
 </header>
 <main>
   <h2 class="judul-hal">📋 Hasil Penilaian</h2>
-  <p class="sub-hal">Hasil pengisian nilai kepala sekolah PAUD/TK, SD &amp; SMP, serta guru di kecamatan Anda. Klik <b>Edit</b> untuk memperbaiki nilai, link dokumentasi, dan catatan — nilai rata &amp; kinerja dihitung ulang otomatis.</p>
+  <p class="sub-hal">Hasil pengisian nilai kepala sekolah PAUD/TK, SD &amp; SMP, serta guru. Klik <b>Edit</b> untuk memperbaiki nilai, link dokumentasi, dan catatan — nilai rata &amp; kinerja dihitung ulang otomatis. Klik <b>Hapus</b> untuk menghapus data penilaian (akan ada konfirmasi).</p>
   <div id="akunBar"></div>
   <div id="pesan"></div>
 
   <!-- ===== DAFTAR ===== -->
   <div id="halDaftar">
+    <div class="kartu" id="kartuKec" style="display:none">
+      <div class="baris">
+        <div><label>Kecamatan</label><select id="fKecamatan"></select></div>
+        <div style="display:flex;align-items:flex-end"><button class="btn btn-biru" id="btnPilihKec">Tampilkan</button></div>
+      </div>
+    </div>
     <div class="tab">
       <button id="tabPaud">KS PAUD/TK</button>
       <button id="tabSdsmp" class="aktif">KS SD &amp; SMP</button>
@@ -56,12 +62,18 @@
 <script src="js/config.js"></script>
 <script>
 (function () {
-  if (!Pengguna.wajib('kecamatan')) return;
-  const akun = Pengguna.data;
-  if (akun.wajibGanti) { location.href = 'login.html?next=hasil-penilaian.html'; return; }
+  const modeAdmin = Admin.aktif;
+  let akun = null;
+  if (!modeAdmin) {
+    if (!Pengguna.wajib('kecamatan')) return;
+    akun = Pengguna.data;
+    if (akun.wajibGanti) { location.href = 'login.html?next=hasil-penilaian.html'; return; }
+  }
 
   let data = { sdsmp: [], paud: [], guru: [] };
   let tab = 'sdsmp';
+  let daftarKec = [];
+  let kecTerpilih = '';
 
   function notif(p, merah) {
     const n = $id('notif'); n.textContent = p; n.style.display = 'block';
@@ -72,11 +84,43 @@
     const d = new Date(v);
     return isNaN(d) ? esc(String(v)) : d.toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'short' });
   }
+  /* payload otentikasi: admin Dinas pakai token, admin kecamatan pakai kunci akun */
+  function authPayload() {
+    return modeAdmin ? { token: Admin.token } : { auth: Pengguna.auth };
+  }
+  function isiSelectorKecamatan() {
+    $id('fKecamatan').innerHTML = daftarKec.map(k => `<option value="${esc(k)}">${esc(k)}</option>`).join('');
+    if (kecTerpilih) $id('fKecamatan').value = kecTerpilih;
+  }
 
   async function muat() {
     $id('tabel').innerHTML = '<span class="muat"></span> Memuat data…';
+    if (modeAdmin && Admin.offlineSesi) {
+      $id('pesan').innerHTML = '<div class="info info-kuning">📴 Sesi admin offline — Hasil Penilaian membutuhkan koneksi internet.</div>';
+      $id('tabel').innerHTML = '';
+      $id('kartuKec').style.display = 'none';
+      return;
+    }
     try {
-      data = await apiGet('hasilkecamatan', { username: akun.username, kunci: akun.kunci });
+      if (modeAdmin) {
+        $id('kartuKec').style.display = '';
+        if (!kecTerpilih) {
+          const j = await apiGet('hasilkecamatan', { token: Admin.token });
+          daftarKec = j.daftarKecamatan || [];
+          isiSelectorKecamatan();
+          $id('pesan').innerHTML = '';
+          $id('tabel').innerHTML = '<p style="color:var(--abu)">Pilih kecamatan, lalu klik <b>Tampilkan</b> untuk melihat hasil penilaian.</p>';
+          return;
+        }
+        if (!daftarKec.length) {
+          const j0 = await apiGet('hasilkecamatan', { token: Admin.token });
+          daftarKec = j0.daftarKecamatan || [];
+          isiSelectorKecamatan();
+        }
+        data = await apiGet('hasilkecamatan', { token: Admin.token, kecamatan: kecTerpilih });
+      } else {
+        data = await apiGet('hasilkecamatan', { username: akun.username, kunci: akun.kunci });
+      }
       $id('pesan').innerHTML = '';
     } catch (e) {
       $id('pesan').innerHTML = `<div class="info info-merah">Gagal memuat: ${esc(e.message)} — fitur ini membutuhkan koneksi internet.</div>`;
@@ -95,23 +139,25 @@
   function render() {
     const cari = $id('cari').value.toLowerCase();
     const bln = $id('fBulan').value;
+    const namaKec = modeAdmin ? kecTerpilih : (akun.kecamatan || akun.username);
     let html = '';
     if (tab === 'guru') {
       const L = layoutGuru();
       let rows = data.guru.filter(x => (!bln || x.row[L.id.bulan] === bln) &&
         (!cari || (String(x.row[L.id.nama]) + String(x.row[L.id.sekolah])).toLowerCase().includes(cari)));
-      html = `<p style="font-size:.85rem;color:var(--abu)">${rows.length} pengisian — Kecamatan ${esc(akun.kecamatan || akun.username)}</p>
+      html = `<p style="font-size:.85rem;color:var(--abu)">${rows.length} pengisian — Kecamatan ${esc(namaKec)}</p>
         <table><tr><th>Nama Guru</th><th>Sekolah</th><th>Mapel</th><th>Bulan</th><th>Rata (%)</th><th>Waktu Isi</th><th>Aksi</th></tr>`;
       rows.forEach(x => {
         html += `<tr><td>${esc(x.row[L.id.nama])}</td><td>${esc(x.row[L.id.sekolah])}</td><td>${esc(x.row[L.id.mapel])}</td>
           <td>${esc(x.row[L.id.bulan])}</td><td><b>${f2(angka(x.row[L.colRataAll]))}</b></td><td>${fmtWaktu(x.row[0])}</td>
-          <td><button class="btn btn-biru" style="padding:.3rem .9rem" onclick="bukaEditGuru(${x.baris})">✏️ Edit</button></td></tr>`;
+          <td><button class="btn btn-biru" style="padding:.3rem .7rem" onclick="bukaEditGuru(${x.baris})">✏️ Edit</button>
+          <button class="btn btn-merah" style="padding:.3rem .7rem" onclick="hapusGuru(${x.baris})">🗑️ Hapus</button></td></tr>`;
       });
     } else {
       const L = layoutKS(tab);
       let rows = (data[tab] || []).filter(x => (!bln || x.row[L.id.bulan] === bln) &&
         (!cari || (String(x.row[L.id.sekolah]) + String(x.row[L.id.ks])).toLowerCase().includes(cari)));
-      html = `<p style="font-size:.85rem;color:var(--abu)">${rows.length} pengisian — Kecamatan ${esc(akun.kecamatan || akun.username)}</p>
+      html = `<p style="font-size:.85rem;color:var(--abu)">${rows.length} pengisian — Kecamatan ${esc(namaKec)}</p>
         <table><tr><th>Sekolah</th><th>Kepala Sekolah</th>${tab === 'sdsmp' ? '<th>Periode</th>' : ''}<th>Bulan</th><th>Minggu</th>
         <th>Rata Baseline</th><th>Rata Capaian</th><th>Kinerja</th><th>Waktu Isi</th><th>Aksi</th></tr>`;
       rows.forEach(x => {
@@ -125,11 +171,30 @@
           ${tab === 'sdsmp' ? '<td>' + esc(x.row[L.id.periode]) + '</td>' : ''}
           <td>${esc(x.row[L.id.bulan])}</td><td>${esc(x.row[L.id.minggu])}</td>
           <td>${f2(rb)}</td><td>${f2(rc)}</td><td><b>${f2(rc - rb)}</b></td><td>${fmtWaktu(x.row[0])}</td>
-          <td><button class="btn btn-biru" style="padding:.3rem .9rem" onclick="bukaEditKS('${tab}',${x.baris})">✏️ Edit</button></td></tr>`;
+          <td><button class="btn btn-biru" style="padding:.3rem .7rem" onclick="bukaEditKS('${tab}',${x.baris})">✏️ Edit</button>
+          <button class="btn btn-merah" style="padding:.3rem .7rem" onclick="hapusKS('${tab}',${x.baris})">🗑️ Hapus</button></td></tr>`;
       });
     }
     $id('tabel').innerHTML = html + '</table>';
   }
+
+  /* ============ HAPUS ============ */
+  window.hapusKS = async function (jenis, baris) {
+    if (!confirm('Yakin hapus data penilaian ini? Tindakan tidak dapat dibatalkan.')) return;
+    try {
+      await apiPost('deleteks', Object.assign(authPayload(), { jenis, baris }));
+      notif('🗑️ Data penilaian berhasil dihapus.');
+      await muat();
+    } catch (e) { notif('Gagal menghapus: ' + e.message, true); }
+  };
+  window.hapusGuru = async function (baris) {
+    if (!confirm('Yakin hapus data penilaian guru ini? Tindakan tidak dapat dibatalkan.')) return;
+    try {
+      await apiPost('deleteguru', Object.assign(authPayload(), { baris }));
+      notif('🗑️ Data penilaian berhasil dihapus.');
+      await muat();
+    } catch (e) { notif('Gagal menghapus: ' + e.message, true); }
+  };
 
   /* ============ EDITOR KS ============ */
   window.bukaEditKS = function (jenis, baris) {
@@ -247,7 +312,7 @@
     const b = $id(idBtn);
     b.disabled = true; b.innerHTML = '<span class="muat"></span> Menyimpan…';
     try {
-      const r = await apiPost(aksi, Object.assign({ auth: Pengguna.auth }, payload));
+      const r = await apiPost(aksi, Object.assign(authPayload(), payload));
       notif('✅ Perubahan tersimpan.' + (r.rataCapaian != null ? ` Rata Capaian ${f2(r.rataCapaian)} · Kinerja ${f2(r.kinerja)}` : r.rataKeseluruhan != null ? ` Rata ${f2(r.rataKeseluruhan)}%` : ''));
       tutupEdit();
       await muat();
@@ -270,8 +335,16 @@
   $id('fBulan').onchange = render;
   $id('cari').oninput = render;
   $id('muatUlang').onclick = muat;
+  $id('btnPilihKec').onclick = () => { kecTerpilih = $id('fKecamatan').value; muat(); };
 
-  barAkun($id('akunBar'), 'Admin Kecamatan ' + (akun.kecamatan || akun.username));
+  if (modeAdmin) {
+    $id('akunBar').innerHTML = `<div class="info info-biru" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.5rem">
+      <span>🔑 <b>Admin Dinas</b> — Hasil Penilaian seluruh kecamatan</span>
+      <span><a href="dashboard.html" style="font-weight:700">Dashboard</a> &nbsp;|&nbsp;
+      <a href="#" onclick="Admin.keluar();return false" style="font-weight:700;color:var(--merah)">Keluar</a></span></div>`;
+  } else {
+    barAkun($id('akunBar'), 'Admin Kecamatan ' + (akun.kecamatan || akun.username));
+  }
   muat();
 })();
 </script>
