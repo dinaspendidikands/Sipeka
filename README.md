@@ -65,7 +65,7 @@ Data penilaian lama dari Google Form dapat **ditempel langsung** ke `KS_SD_SMP` 
 
 ## 6. Login Admin & Pengaturan
 
-- **🔒 Masuk Admin** → password awal **`admin123`** → segera ganti.
+- **🔒 Masuk Admin** → password awal **`** → segera ganti.
 - Pengaturan: ambang kategori nilai KS (skala 1–5) & guru (%), batas kelompok baseline ranking (default 1–1,9 / 2–2,9 / 3–3,9 / 4–5) — langsung berlaku tanpa ubah kode.
 - Sesi admin online 6 jam; **login admin offline** tersedia di perangkat yang pernah login online (fitur tulis-server nonaktif selama offline).
 
@@ -117,7 +117,7 @@ Catatan rapor: kategori capaian **sementara tidak ditampilkan** di lembar cetak 
 - [ ] Uji: login KS → isi penilaian guru (termasuk survey 0–1) → cetak rapor guru
 - [ ] Uji cetak banyak per pengawas & per kepala sekolah
 - [ ] Uji offline: Tarik Data → matikan internet → dashboard & rapor
-- [ ] Password admin diganti dari `admin123`
+- [ ] Password admin diganti dari 
 
 ## 11. Catatan Teknis
 
