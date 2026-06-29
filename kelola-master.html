@@ -164,6 +164,34 @@
     $id('tabel').innerHTML = html + '</table>';
   }
 
+  /* ============ HELPER DROPDOWN ============ */
+  // dropdown dari daftar nilai; nilai sekarang selalu dimasukkan (agar data lama tak hilang);
+  // bila `lain` true, ditambah opsi "Lainnya (ketik)…" yang membuka input teks.
+  function dropdown(id, daftar, nilai, kosong, lain) {
+    const v = (nilai == null ? '' : String(nilai)).trim();
+    let arr = (daftar || []).map(String);
+    if (v && arr.indexOf(v) === -1) arr = [v].concat(arr);
+    let html = `<select id="${id}"${lain ? ` onchange="toggleLain(this,'${id}Lain')"` : ''}>`;
+    html += `<option value="">${esc(kosong || '— pilih —')}</option>`;
+    arr.forEach(o => { html += `<option ${o === v ? 'selected' : ''}>${esc(o)}</option>`; });
+    if (lain) html += `<option value="__lain__">Lainnya (ketik)…</option>`;
+    html += '</select>';
+    if (lain) html += `<input id="${id}Lain" style="display:none;margin-top:.4rem" placeholder="ketik nilai baru">`;
+    return html;
+  }
+  window.toggleLain = function (sel, idLain) {
+    const el = $id(idLain); if (el) el.style.display = sel.value === '__lain__' ? '' : 'none';
+  };
+  // baca nilai dari select (termasuk opsi Lainnya) atau input biasa
+  function ambilNilai(id) {
+    const el = $id(id); if (!el) return '';
+    if (el.tagName === 'SELECT') {
+      if (el.value === '__lain__') { const l = $id(id + 'Lain'); return l ? l.value.trim() : ''; }
+      return el.value;
+    }
+    return el.value.trim();
+  }
+
   /* ============ FORM SEKOLAH ============ */
   function opsiJenjang(v) {
     return ['<option value="">— pilih —</option>'].concat(
@@ -171,7 +199,12 @@
   }
   function formSekolah(s, isEdit) {
     s = s || {};
-    const kecLock = !modeAdmin; // admin kecamatan: kecamatan dikunci
+    // Kecamatan: admin Dinas saat EDIT boleh pindah (dropdown daftar kecamatan);
+    // selain itu dikunci ke kecamatan yang sedang dibuka.
+    const kecBebas = modeAdmin && isEdit;
+    const kecField = kecBebas
+      ? dropdown('sKecamatan', data.daftarKecamatan, (s.kecamatan || kecTerpilih))
+      : `<input id="sKecamatan" value="${esc(s.kecamatan || kecTerpilih)}" disabled>`;
     return `<div class="kartu">
       <h3>${isEdit ? '✏️ Edit' : '➕ Tambah'} Master Sekolah</h3>
       <p class="info info-kuning">${isEdit ? 'NPSN tidak dapat diubah (kunci relasi data).' : 'NPSN harus unik dan belum terdaftar.'}
@@ -181,11 +214,11 @@
           <input id="sNpsn" value="${esc(s.npsn || '')}" ${isEdit ? 'disabled' : 'placeholder="cth. 10200123"'}></div>
         <div><label>Jenjang</label><select id="sJenjang">${opsiJenjang(s.jenjang)}</select></div>
         <div style="grid-column:1/-1"><label>Nama Sekolah *</label><input id="sNama" value="${esc(s.sekolah || '')}"></div>
-        <div><label>Kecamatan</label><input id="sKecamatan" value="${esc(s.kecamatan || kecTerpilih)}" ${kecLock ? 'disabled' : ''}></div>
+        <div><label>Kecamatan</label>${kecField}</div>
         <div><label>NIP Kepala Sekolah</label><input id="sNipKS" value="${esc(s.nipKS || '')}"></div>
         <div><label>Nama Kepala Sekolah</label><input id="sKS" value="${esc(s.ks || '')}"></div>
         <div><label>HP Kepala Sekolah</label><input id="sHpKS" value="${esc(s.hpKS || '')}"></div>
-        <div><label>Nama Pengawas</label><input id="sPengawas" value="${esc(s.pengawas || '')}"></div>
+        <div><label>Nama Pengawas</label>${dropdown('sPengawas', data.daftarPengawas, s.pengawas, '— pilih pengawas —')}</div>
         <div><label>HP Pengawas</label><input id="sHpPengawas" value="${esc(s.hpPengawas || '')}"></div>
       </div></div>
       <div style="text-align:right;margin-bottom:2rem">
@@ -198,9 +231,9 @@
       npsn: ($id('sNpsn').value || '').trim(),
       sekolah: $id('sNama').value.trim(),
       jenjang: $id('sJenjang').value,
-      kecamatan: ($id('sKecamatan') ? $id('sKecamatan').value.trim() : ''),
+      kecamatan: ambilNilai('sKecamatan'),
       ks: $id('sKS').value.trim(), hpKS: $id('sHpKS').value.trim(),
-      pengawas: $id('sPengawas').value.trim(), hpPengawas: $id('sHpPengawas').value.trim(),
+      pengawas: ambilNilai('sPengawas'), hpPengawas: $id('sHpPengawas').value.trim(),
       nipKS: $id('sNipKS').value.trim()
     };
   }
@@ -234,9 +267,9 @@
         <div style="grid-column:1/-1"><label>Sekolah (NPSN) *</label><select id="gNpsn">${opsiSekolah(g.npsn)}</select></div>
         <div style="grid-column:1/-1"><label>Nama Guru *</label><input id="gNama" value="${esc(g.nama || '')}"></div>
         <div><label>NIP/NUPTK</label><input id="gNip" value="${esc(g.nip || '')}"></div>
-        <div><label>Status</label><input id="gStatus" value="${esc(g.status || '')}" placeholder="PNS / PPPK / Honorer"></div>
-        <div><label>Pangkat/Gol. Ruang</label><input id="gPangkat" value="${esc(g.pangkat || '')}"></div>
-        <div><label>Mata Pelajaran</label><input id="gMapel" value="${esc(g.mapel || '')}"></div>
+        <div><label>Status</label>${dropdown('gStatus', data.daftarStatus, g.status, '— pilih status —', true)}</div>
+        <div><label>Pangkat/Gol. Ruang</label>${dropdown('gPangkat', data.daftarPangkat, g.pangkat, '— pilih pangkat —', true)}</div>
+        <div><label>Mata Pelajaran</label>${dropdown('gMapel', data.daftarMapel, g.mapel, '— pilih mapel —', true)}</div>
         <div><label>HP Guru</label><input id="gHp" value="${esc(g.hp || '')}"></div>
       </div></div>
       <div style="text-align:right;margin-bottom:2rem">
@@ -247,8 +280,8 @@
   function bacaFormGuru() {
     return {
       npsn: $id('gNpsn').value, nama: $id('gNama').value.trim(), nip: $id('gNip').value.trim(),
-      status: $id('gStatus').value.trim(), pangkat: $id('gPangkat').value.trim(),
-      mapel: $id('gMapel').value.trim(), hp: $id('gHp').value.trim()
+      status: ambilNilai('gStatus'), pangkat: ambilNilai('gPangkat'),
+      mapel: ambilNilai('gMapel'), hp: $id('gHp').value.trim()
     };
   }
   window.bukaTambahGuru = function () {
