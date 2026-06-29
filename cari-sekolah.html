@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cari Data Sekolah — SIPEKA</title>
+<link rel="stylesheet" href="css/app.css">
+<style>
+  .kartu-sekolah{margin-bottom:.8rem}
+  .kartu-sekolah table{width:100%;font-size:.9rem;border-top:1px solid #e4e9ef;margin-top:.5rem}
+  .kartu-sekolah td{padding:.25rem 0;vertical-align:top}
+  .kartu-sekolah td.lbl{color:var(--abu);width:45%}
+  .kepala-kartu{display:flex;justify-content:space-between;align-items:flex-start;gap:.6rem;flex-wrap:wrap}
+  .btn-salin{white-space:nowrap}
+</style>
+</head>
+<body>
+<header>
+  <div class="nav">
+    <a class="brand" href="index.html">
+      <div class="logo">DS</div>
+      <h1>SIPEKA Deli Serdang<small>Cari Data Sekolah — Admin Dinas</small></h1>
+    </a>
+    <nav><ul>
+      <li><a href="index.html">Beranda</a></li>
+      <li><a href="dashboard.html">Dashboard</a></li>
+      <li><a href="cari-sekolah.html" class="aktif">Cari Sekolah</a></li>
+    </ul></nav>
+  </div>
+</header>
+<main>
+  <h2 class="judul-hal">🔎 Cari Data Sekolah</h2>
+  <p class="sub-hal">Ketik nama sekolah untuk menampilkan datanya. Klik <b>Salin</b> untuk menyalin data satu sekolah, atau <b>Salin semua hasil</b> untuk seluruh hasil pencarian — lalu tempel (paste) di WhatsApp.</p>
+  <div id="akunBar"></div>
+  <div id="pesan"></div>
+
+  <div class="kartu">
+    <div class="baris">
+      <div style="flex:2"><label>Cari nama sekolah</label><input id="cari" placeholder="ketik nama sekolah…" autocomplete="off"></div>
+      <div style="display:flex;align-items:flex-end;gap:.5rem">
+        <button class="btn btn-hijau" id="btnSalinSemua">📋 Salin semua hasil</button>
+        <button class="btn btn-abu" id="muatUlang">⟳ Muat Ulang</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="hasil"><div class="kartu"><span class="muat"></span> Memuat data sekolah…</div></div>
+</main>
+<div id="notif"></div>
+<footer>© 2026 Dinas Pendidikan Kabupaten Deli Serdang — SIPEKA</footer>
+<script src="js/indikator.js"></script>
+<script src="js/config.js"></script>
+<script>
+(function () {
+  if (!Admin.wajib()) return;
+
+  let semua = [];
+  let tampil = [];
+  let dariSnapshot = false;
+
+  function notif(p, merah) {
+    const n = $id('notif'); n.textContent = p; n.style.display = 'block';
+    n.style.background = merah ? 'var(--merah)' : 'var(--biru-tua)';
+    setTimeout(() => n.style.display = 'none', 4000);
+  }
+
+  /* format teks WhatsApp — label biasa (tanpa penebalan) */
+  function teksSekolah(s) {
+    return [
+      'NPSN: ' + (s.npsn || ''),
+      'Nama Sekolah: ' + (s.sekolah || ''),
+      'Jenjang: ' + (s.jenjang || ''),
+      'Kecamatan: ' + (s.kecamatan || ''),
+      'Kepala Sekolah: ' + (s.ks || ''),
+      'HP Kepala Sekolah: ' + (s.hpKS || ''),
+      'Pengawas: ' + (s.pengawas || ''),
+      'HP Pengawas: ' + (s.hpPengawas || ''),
+      'NIP Kepala Sekolah: ' + (s.nipKS || '')
+    ].join('\n');
+  }
+  const PEMISAH = '\n――――――――――\n';
+
+  async function salin(teks) {
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(teks);
+      } else {
+        const ta = document.createElement('textarea');
+        ta.value = teks; ta.style.position = 'fixed'; ta.style.opacity = '0';
+        document.body.appendChild(ta); ta.focus(); ta.select();
+        document.execCommand('copy'); ta.remove();
+      }
+      notif('✅ Tersalin — tinggal tempel (paste) di WhatsApp.');
+    } catch (e) { notif('Gagal menyalin: ' + e.message, true); }
+  }
+  window.salinSatu = function (i) {
+    const s = tampil[i]; if (!s) return;
+    salin(teksSekolah(s));
+  };
+
+  async function muat() {
+    $id('hasil').innerHTML = '<div class="kartu"><span class="muat"></span> Memuat data sekolah…</div>';
+    try {
+      const j = await apiGet('master');
+      semua = j.sekolah || [];
+      dariSnapshot = false;
+    } catch (e) {
+      const s = await Snapshot.muat().catch(() => null);
+      if (s && s.master && s.master.sekolah) {
+        semua = s.master.sekolah; dariSnapshot = true;
+      } else {
+        $id('hasil').innerHTML = `<div class="kartu"><div class="info info-merah">Gagal memuat data sekolah: ${esc(e.message)}.<br>Sambungkan internet, atau buka Dashboard → Tarik Data dahulu untuk mode offline.</div></div>`;
+        return;
+      }
+    }
+    semua.sort((a, b) => String(a.sekolah).localeCompare(String(b.sekolah), 'id'));
+    $id('pesan').innerHTML = dariSnapshot
+      ? '<div class="info info-kuning">📴 Menampilkan data dari snapshot offline (mungkin tidak terbaru).</div>' : '';
+    render();
+  }
+
+  function render() {
+    const cari = $id('cari').value.trim().toLowerCase();
+    tampil = !cari ? semua.slice() : semua.filter(s => String(s.sekolah || '').toLowerCase().includes(cari));
+    if (!semua.length) {
+      $id('hasil').innerHTML = '<div class="kartu"><p style="color:var(--abu)">Belum ada data sekolah di master.</p></div>';
+      return;
+    }
+    if (!tampil.length) {
+      $id('hasil').innerHTML = `<div class="kartu"><p style="color:var(--abu)">Tidak ada sekolah cocok dengan "<b>${esc($id('cari').value.trim())}</b>".</p></div>`;
+      return;
+    }
+    const baris = (lbl, val) => `<tr><td class="lbl">${lbl}</td><td>${esc(val || '-')}</td></tr>`;
+    let html = `<p style="font-size:.85rem;color:var(--abu);margin:.2rem 0 .6rem">${tampil.length} sekolah ditemukan${cari ? '' : ' (semua)'} </p>`;
+    tampil.forEach((s, i) => {
+      html += `<div class="kartu kartu-sekolah">
+        <div class="kepala-kartu">
+          <div>
+            <div style="font-weight:700">${esc(s.sekolah)}</div>
+            <div style="font-size:.8rem;color:var(--abu)">NPSN ${esc(s.npsn)} · ${esc(s.jenjang || '-')} · Kec. ${esc(s.kecamatan || '-')}</div>
+          </div>
+          <button class="btn btn-biru btn-salin" onclick="salinSatu(${i})">📋 Salin</button>
+        </div>
+        <table>
+          ${baris('NPSN', s.npsn)}
+          ${baris('Nama Sekolah', s.sekolah)}
+          ${baris('Jenjang', s.jenjang)}
+          ${baris('Kecamatan', s.kecamatan)}
+          ${baris('Kepala Sekolah', s.ks)}
+          ${baris('HP Kepala Sekolah', s.hpKS)}
+          ${baris('Nama Pengawas', s.pengawas)}
+          ${baris('HP Pengawas', s.hpPengawas)}
+          ${baris('NIP Kepala Sekolah', s.nipKS)}
+        </table>
+      </div>`;
+    });
+    $id('hasil').innerHTML = html;
+  }
+
+  $id('cari').oninput = render;
+  $id('muatUlang').onclick = muat;
+  $id('btnSalinSemua').onclick = () => {
+    if (!tampil.length) return notif('Tidak ada hasil untuk disalin.', true);
+    const teks = tampil.map(teksSekolah).join(PEMISAH);
+    salin(teks);
+  };
+
+  if (Admin.offlineSesi) $id('pesan').innerHTML = '<div class="info info-kuning">📴 Sesi admin offline — data diambil dari snapshot bila tersedia.</div>';
+  $id('akunBar').innerHTML = `<div class="info info-biru" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.5rem">
+    <span>🔑 <b>Admin Dinas</b> — pencarian data sekolah se-kabupaten</span>
+    <span><a href="dashboard.html" style="font-weight:700">Dashboard</a> &nbsp;|&nbsp;
+    <a href="hasil-penilaian.html" style="font-weight:700">Hasil Penilaian</a> &nbsp;|&nbsp;
+    <a href="#" onclick="Admin.keluar();return false" style="font-weight:700;color:var(--merah)">Keluar</a></span></div>`;
+  muat();
+})();
+</script>
+</body>
+</html>
