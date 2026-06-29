@@ -8,6 +8,8 @@
   .tab{display:flex;gap:.4rem;margin-bottom:1rem;flex-wrap:wrap}
   .tab button{padding:.5rem 1.1rem;border:none;border-radius:999px;background:#e4e9ef;font-weight:700;cursor:pointer}
   .tab button.aktif{background:var(--biru);color:#fff}
+  th.kol-aksi, td.kol-aksi{white-space:nowrap}
+  .btn-aksi{display:inline-block;width:84px;padding:.3rem .4rem;text-align:center;box-sizing:border-box;font-size:.85rem}
 </style>
 </head>
 <body>
@@ -20,6 +22,7 @@
     <nav><ul>
       <li><a href="index.html">Beranda</a></li>
       <li><a href="hasil-penilaian.html" class="aktif">Hasil Penilaian</a></li>
+      <li><a href="kelola-master.html">Kelola Master</a></li>
       <li><a href="rapor.html">Rapor</a></li>
     </ul></nav>
   </div>
@@ -146,12 +149,12 @@
       let rows = data.guru.filter(x => (!bln || x.row[L.id.bulan] === bln) &&
         (!cari || (String(x.row[L.id.nama]) + String(x.row[L.id.sekolah])).toLowerCase().includes(cari)));
       html = `<p style="font-size:.85rem;color:var(--abu)">${rows.length} pengisian — Kecamatan ${esc(namaKec)}</p>
-        <table><tr><th>Nama Guru</th><th>Sekolah</th><th>Mapel</th><th>Bulan</th><th>Rata (%)</th><th>Waktu Isi</th><th>Aksi</th></tr>`;
+        <table><tr><th>Nama Guru</th><th>Sekolah</th><th>Mapel</th><th>Bulan</th><th>Rata (%)</th><th>Waktu Isi</th><th class="kol-aksi">Aksi</th></tr>`;
       rows.forEach(x => {
         html += `<tr><td>${esc(x.row[L.id.nama])}</td><td>${esc(x.row[L.id.sekolah])}</td><td>${esc(x.row[L.id.mapel])}</td>
           <td>${esc(x.row[L.id.bulan])}</td><td><b>${f2(angka(x.row[L.colRataAll]))}</b></td><td>${fmtWaktu(x.row[0])}</td>
-          <td><button class="btn btn-biru" style="padding:.3rem .7rem" onclick="bukaEditGuru(${x.baris})">✏️ Edit</button>
-          <button class="btn btn-merah" style="padding:.3rem .7rem" onclick="hapusGuru(${x.baris})">🗑️ Hapus</button></td></tr>`;
+          <td class="kol-aksi"><button class="btn btn-biru btn-aksi" onclick="bukaEditGuru(${x.baris})">✏️ Edit</button>
+          <button class="btn btn-merah btn-aksi" onclick="hapusGuru(${x.baris})">🗑️ Hapus</button></td></tr>`;
       });
     } else {
       const L = layoutKS(tab);
@@ -159,7 +162,7 @@
         (!cari || (String(x.row[L.id.sekolah]) + String(x.row[L.id.ks])).toLowerCase().includes(cari)));
       html = `<p style="font-size:.85rem;color:var(--abu)">${rows.length} pengisian — Kecamatan ${esc(namaKec)}</p>
         <table><tr><th>Sekolah</th><th>Kepala Sekolah</th>${tab === 'sdsmp' ? '<th>Periode</th>' : ''}<th>Bulan</th><th>Minggu</th>
-        <th>Rata Baseline</th><th>Rata Capaian</th><th>Kinerja</th><th>Waktu Isi</th><th>Aksi</th></tr>`;
+        <th>Rata Baseline</th><th>Rata Capaian</th><th>Kinerja</th><th>Waktu Isi</th><th class="kol-aksi">Aksi</th></tr>`;
       rows.forEach(x => {
         let rb = angka(x.row[L.colRataB]), rc = angka(x.row[L.colRataC]);
         if (!rb) { // data lama tanpa agregat → hitung dari indikator
@@ -171,8 +174,8 @@
           ${tab === 'sdsmp' ? '<td>' + esc(x.row[L.id.periode]) + '</td>' : ''}
           <td>${esc(x.row[L.id.bulan])}</td><td>${esc(x.row[L.id.minggu])}</td>
           <td>${f2(rb)}</td><td>${f2(rc)}</td><td><b>${f2(rc - rb)}</b></td><td>${fmtWaktu(x.row[0])}</td>
-          <td><button class="btn btn-biru" style="padding:.3rem .7rem" onclick="bukaEditKS('${tab}',${x.baris})">✏️ Edit</button>
-          <button class="btn btn-merah" style="padding:.3rem .7rem" onclick="hapusKS('${tab}',${x.baris})">🗑️ Hapus</button></td></tr>`;
+          <td class="kol-aksi"><button class="btn btn-biru btn-aksi" onclick="bukaEditKS('${tab}',${x.baris})">✏️ Edit</button>
+          <button class="btn btn-merah btn-aksi" onclick="hapusKS('${tab}',${x.baris})">🗑️ Hapus</button></td></tr>`;
       });
     }
     $id('tabel').innerHTML = html + '</table>';
@@ -340,7 +343,8 @@
   if (modeAdmin) {
     $id('akunBar').innerHTML = `<div class="info info-biru" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.5rem">
       <span>🔑 <b>Admin Dinas</b> — Hasil Penilaian seluruh kecamatan</span>
-      <span><a href="dashboard.html" style="font-weight:700">Dashboard</a> &nbsp;|&nbsp;
+      <span><a href="kelola-master.html" style="font-weight:700">Kelola Master</a> &nbsp;|&nbsp;
+      <a href="dashboard.html" style="font-weight:700">Dashboard</a> &nbsp;|&nbsp;
       <a href="#" onclick="Admin.keluar();return false" style="font-weight:700;color:var(--merah)">Keluar</a></span></div>`;
   } else {
     barAkun($id('akunBar'), 'Admin Kecamatan ' + (akun.kecamatan || akun.username));

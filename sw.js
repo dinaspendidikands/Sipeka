@@ -1,8 +1,8 @@
 /* SIPEKA service worker — cache app shell agar bisa dibuka offline */
-const CACHE = 'sipeka-v19';
+const CACHE = 'sipeka-v20';
 const SHELL = [
   './', 'index.html', 'form-ks-sd-smp.html', 'form-ks-paud.html', 'form-guru.html',
-  'rapor.html', 'dashboard.html', 'admin.html', 'login.html', 'hasil-penilaian.html',
+  'rapor.html', 'dashboard.html', 'admin.html', 'login.html', 'hasil-penilaian.html', 'kelola-master.html',
   'css/app.css', 'js/config.js', 'js/indikator.js', 'js/form-ks.js',
   'https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js',
   'https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js'

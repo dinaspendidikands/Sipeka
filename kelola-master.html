@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kelola Data Master — SIPEKA</title>
+<link rel="stylesheet" href="css/app.css">
+<style>
+  .tab{display:flex;gap:.4rem;margin-bottom:1rem;flex-wrap:wrap}
+  .tab button{padding:.5rem 1.1rem;border:none;border-radius:999px;background:#e4e9ef;font-weight:700;cursor:pointer}
+  .tab button.aktif{background:var(--biru);color:#fff}
+  th.kol-aksi, td.kol-aksi{white-space:nowrap}
+  .btn-aksi{display:inline-block;width:84px;padding:.3rem .4rem;text-align:center;box-sizing:border-box;font-size:.85rem}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:.8rem}
+  @media(max-width:560px){.grid2{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header>
+  <div class="nav">
+    <a class="brand" href="index.html">
+      <div class="logo">DS</div>
+      <h1>SIPEKA Deli Serdang<small>Kelola Data Master — Admin Kecamatan &amp; Dinas</small></h1>
+    </a>
+    <nav><ul>
+      <li><a href="index.html">Beranda</a></li>
+      <li><a href="hasil-penilaian.html">Hasil Penilaian</a></li>
+      <li><a href="kelola-master.html" class="aktif">Kelola Master</a></li>
+    </ul></nav>
+  </div>
+</header>
+<main>
+  <h2 class="judul-hal">🗂️ Kelola Data Master</h2>
+  <p class="sub-hal">Tambah, perbaiki, dan hapus data <b>Master Sekolah</b> dan <b>Master Guru</b>. Admin Kecamatan hanya mengelola data di kecamatannya; Admin Dinas dapat memilih kecamatan mana pun. Setiap penghapusan dikonfirmasi, dan diperingatkan bila masih ada data penilaian terkait.</p>
+  <div id="akunBar"></div>
+  <div id="pesan"></div>
+
+  <!-- ===== DAFTAR ===== -->
+  <div id="halDaftar">
+    <div class="kartu" id="kartuKec" style="display:none">
+      <div class="baris">
+        <div><label>Kecamatan</label><select id="fKecamatan"></select></div>
+        <div style="display:flex;align-items:flex-end"><button class="btn btn-biru" id="btnPilihKec">Tampilkan</button></div>
+      </div>
+    </div>
+    <div class="tab">
+      <button id="tabSekolah" class="aktif">Master Sekolah</button>
+      <button id="tabGuru">Master Guru</button>
+    </div>
+    <div class="kartu">
+      <div class="baris">
+        <div><label>Cari</label><input id="cari" placeholder="ketik nama / NPSN…"></div>
+        <div style="display:flex;align-items:flex-end;gap:.5rem">
+          <button class="btn btn-hijau" id="btnTambah">➕ Tambah</button>
+          <button class="btn btn-abu" id="muatUlang">⟳ Muat Ulang</button>
+        </div>
+      </div>
+    </div>
+    <div class="kartu"><div style="overflow-x:auto" id="tabel"><span class="muat"></span> Memuat data…</div></div>
+  </div>
+
+  <!-- ===== EDITOR ===== -->
+  <div id="halEdit" style="display:none"></div>
+</main>
+<div id="notif"></div>
+<footer>© 2026 Dinas Pendidikan Kabupaten Deli Serdang — SIPEKA</footer>
+<script src="js/indikator.js"></script>
+<script src="js/config.js"></script>
+<script>
+(function () {
+  const modeAdmin = Admin.aktif;
+  let akun = null;
+  if (!modeAdmin) {
+    if (!Pengguna.wajib('kecamatan')) return;
+    akun = Pengguna.data;
+    if (akun.wajibGanti) { location.href = 'login.html?next=kelola-master.html'; return; }
+  }
+
+  let data = { sekolah: [], guru: [], daftarSekolah: [] };
+  let tab = 'sekolah';
+  let daftarKec = [];
+  let kecTerpilih = '';
+  const JENJANG = ['PAUD', 'TK', 'SD', 'SMP'];
+
+  function notif(p, merah) {
+    const n = $id('notif'); n.textContent = p; n.style.display = 'block';
+    n.style.background = merah ? 'var(--merah)' : 'var(--biru-tua)';
+    setTimeout(() => n.style.display = 'none', 5000);
+  }
+  /* otentikasi: admin Dinas pakai token + kecamatan terpilih; admin kecamatan pakai kunci akun */
+  function authPayload() {
+    return modeAdmin ? { token: Admin.token } : { auth: Pengguna.auth };
+  }
+  function basePayload(extra) {
+    const p = Object.assign(authPayload(), extra || {});
+    if (modeAdmin) p.kecamatan = kecTerpilih;
+    return p;
+  }
+  function isiSelectorKecamatan() {
+    $id('fKecamatan').innerHTML = daftarKec.map(k => `<option value="${esc(k)}">${esc(k)}</option>`).join('');
+    if (kecTerpilih) $id('fKecamatan').value = kecTerpilih;
+  }
+
+  async function muat() {
+    $id('tabel').innerHTML = '<span class="muat"></span> Memuat data…';
+    if (modeAdmin && Admin.offlineSesi) {
+      $id('pesan').innerHTML = '<div class="info info-kuning">📴 Sesi admin offline — Kelola Master membutuhkan koneksi internet.</div>';
+      $id('tabel').innerHTML = ''; $id('kartuKec').style.display = 'none';
+      return;
+    }
+    try {
+      if (modeAdmin) {
+        $id('kartuKec').style.display = '';
+        if (!daftarKec.length) {
+          const j = await apiGet('hasilkecamatan', { token: Admin.token });
+          daftarKec = j.daftarKecamatan || [];
+          isiSelectorKecamatan();
+        }
+        if (!kecTerpilih) {
+          $id('pesan').innerHTML = '';
+          $id('tabel').innerHTML = '<p style="color:var(--abu)">Pilih kecamatan, lalu klik <b>Tampilkan</b> untuk mengelola data master.</p>';
+          return;
+        }
+        data = await apiPost('masterlist', { token: Admin.token, kecamatan: kecTerpilih });
+      } else {
+        data = await apiPost('masterlist', { auth: Pengguna.auth });
+        kecTerpilih = data.kecamatan || (akun.kecamatan || akun.username);
+      }
+      $id('pesan').innerHTML = '';
+    } catch (e) {
+      $id('pesan').innerHTML = `<div class="info info-merah">Gagal memuat: ${esc(e.message)} — fitur ini membutuhkan koneksi internet.</div>`;
+      $id('tabel').innerHTML = '';
+      return;
+    }
+    render();
+  }
+
+  function render() {
+    const cari = $id('cari').value.toLowerCase();
+    const namaKec = kecTerpilih || (akun && (akun.kecamatan || akun.username)) || '';
+    let html = '';
+    if (tab === 'sekolah') {
+      let rows = (data.sekolah || []).filter(x =>
+        !cari || (String(x.sekolah) + x.npsn + String(x.ks) + String(x.pengawas)).toLowerCase().includes(cari));
+      html = `<p style="font-size:.85rem;color:var(--abu)">${rows.length} sekolah — Kecamatan ${esc(namaKec)}</p>
+        <table><tr><th>NPSN</th><th>Nama Sekolah</th><th>Jenjang</th><th>Kepala Sekolah</th><th>Pengawas</th><th class="kol-aksi">Aksi</th></tr>`;
+      rows.forEach(x => {
+        html += `<tr><td>${esc(x.npsn)}</td><td>${esc(x.sekolah)}</td><td>${esc(x.jenjang)}</td>
+          <td>${esc(x.ks)}</td><td>${esc(x.pengawas)}</td>
+          <td class="kol-aksi"><button class="btn btn-biru btn-aksi" onclick="bukaEditSekolah(${x.baris})">✏️ Edit</button>
+          <button class="btn btn-merah btn-aksi" onclick="hapusSekolah(${x.baris})">🗑️ Hapus</button></td></tr>`;
+      });
+    } else {
+      let rows = (data.guru || []).filter(x =>
+        !cari || (String(x.nama) + x.npsn + String(x.sekolah) + String(x.nip) + String(x.mapel)).toLowerCase().includes(cari));
+      html = `<p style="font-size:.85rem;color:var(--abu)">${rows.length} guru — Kecamatan ${esc(namaKec)}</p>
+        <table><tr><th>Nama Guru</th><th>Sekolah</th><th>NIP/NUPTK</th><th>Status</th><th>Mapel</th><th class="kol-aksi">Aksi</th></tr>`;
+      rows.forEach(x => {
+        html += `<tr><td>${esc(x.nama)}</td><td>${esc(x.sekolah)}</td><td>${esc(x.nip)}</td>
+          <td>${esc(x.status)}</td><td>${esc(x.mapel)}</td>
+          <td class="kol-aksi"><button class="btn btn-biru btn-aksi" onclick="bukaEditGuru(${x.baris})">✏️ Edit</button>
+          <button class="btn btn-merah btn-aksi" onclick="hapusGuru(${x.baris})">🗑️ Hapus</button></td></tr>`;
+      });
+    }
+    $id('tabel').innerHTML = html + '</table>';
+  }
+
+  /* ============ FORM SEKOLAH ============ */
+  function opsiJenjang(v) {
+    return ['<option value="">— pilih —</option>'].concat(
+      JENJANG.map(j => `<option ${String(v) === j ? 'selected' : ''}>${j}</option>`)).join('');
+  }
+  function formSekolah(s, isEdit) {
+    s = s || {};
+    const kecLock = !modeAdmin; // admin kecamatan: kecamatan dikunci
+    return `<div class="kartu">
+      <h3>${isEdit ? '✏️ Edit' : '➕ Tambah'} Master Sekolah</h3>
+      <p class="info info-kuning">${isEdit ? 'NPSN tidak dapat diubah (kunci relasi data).' : 'NPSN harus unik dan belum terdaftar.'}
+        NIP pengawas tidak diisi di sini — otomatis dari akun pengawas.</p>
+      <div class="grid2">
+        <div><label>NPSN${isEdit ? '' : ' *'}</label>
+          <input id="sNpsn" value="${esc(s.npsn || '')}" ${isEdit ? 'disabled' : 'placeholder="cth. 10200123"'}></div>
+        <div><label>Jenjang</label><select id="sJenjang">${opsiJenjang(s.jenjang)}</select></div>
+        <div style="grid-column:1/-1"><label>Nama Sekolah *</label><input id="sNama" value="${esc(s.sekolah || '')}"></div>
+        <div><label>Kecamatan</label><input id="sKecamatan" value="${esc(s.kecamatan || kecTerpilih)}" ${kecLock ? 'disabled' : ''}></div>
+        <div><label>NIP Kepala Sekolah</label><input id="sNipKS" value="${esc(s.nipKS || '')}"></div>
+        <div><label>Nama Kepala Sekolah</label><input id="sKS" value="${esc(s.ks || '')}"></div>
+        <div><label>HP Kepala Sekolah</label><input id="sHpKS" value="${esc(s.hpKS || '')}"></div>
+        <div><label>Nama Pengawas</label><input id="sPengawas" value="${esc(s.pengawas || '')}"></div>
+        <div><label>HP Pengawas</label><input id="sHpPengawas" value="${esc(s.hpPengawas || '')}"></div>
+      </div></div>
+      <div style="text-align:right;margin-bottom:2rem">
+        <button class="btn btn-abu" onclick="tutupEdit()">Batal</button>
+        <button class="btn btn-hijau" id="btnSimpanSekolah">💾 Simpan</button>
+      </div>`;
+  }
+  function bacaFormSekolah() {
+    return {
+      npsn: ($id('sNpsn').value || '').trim(),
+      sekolah: $id('sNama').value.trim(),
+      jenjang: $id('sJenjang').value,
+      kecamatan: ($id('sKecamatan') ? $id('sKecamatan').value.trim() : ''),
+      ks: $id('sKS').value.trim(), hpKS: $id('sHpKS').value.trim(),
+      pengawas: $id('sPengawas').value.trim(), hpPengawas: $id('sHpPengawas').value.trim(),
+      nipKS: $id('sNipKS').value.trim()
+    };
+  }
+  window.bukaTambahSekolah = function () { tampilEditor(formSekolah({}, false)); pasangSimpanSekolah(null); };
+  window.bukaEditSekolah = function (baris) {
+    const x = (data.sekolah || []).find(d => d.baris === baris); if (!x) return;
+    tampilEditor(formSekolah(x, true)); pasangSimpanSekolah(baris);
+  };
+  function pasangSimpanSekolah(baris) {
+    $id('btnSimpanSekolah').onclick = () => {
+      const d = bacaFormSekolah();
+      if (!d.sekolah) return notif('Nama sekolah wajib diisi', true);
+      if (!baris && !d.npsn) return notif('NPSN wajib diisi', true);
+      simpan(baris ? 'sekolahedit' : 'sekolahtambah', baris ? { baris, data: d } : { data: d }, 'btnSimpanSekolah');
+    };
+  }
+
+  /* ============ FORM GURU ============ */
+  function opsiSekolah(npsn) {
+    const ds = data.daftarSekolah || [];
+    return ['<option value="">— pilih sekolah —</option>'].concat(
+      ds.map(s => `<option value="${esc(s.npsn)}" ${String(npsn) === String(s.npsn) ? 'selected' : ''}>${esc(s.nama)} (${esc(s.npsn)})</option>`)
+    ).join('');
+  }
+  function formGuru(g, isEdit) {
+    g = g || {};
+    return `<div class="kartu">
+      <h3>${isEdit ? '✏️ Edit' : '➕ Tambah'} Master Guru</h3>
+      <p class="info info-kuning">Pilih sekolah tempat guru bertugas. Kecamatan guru mengikuti sekolahnya.</p>
+      <div class="grid2">
+        <div style="grid-column:1/-1"><label>Sekolah (NPSN) *</label><select id="gNpsn">${opsiSekolah(g.npsn)}</select></div>
+        <div style="grid-column:1/-1"><label>Nama Guru *</label><input id="gNama" value="${esc(g.nama || '')}"></div>
+        <div><label>NIP/NUPTK</label><input id="gNip" value="${esc(g.nip || '')}"></div>
+        <div><label>Status</label><input id="gStatus" value="${esc(g.status || '')}" placeholder="PNS / PPPK / Honorer"></div>
+        <div><label>Pangkat/Gol. Ruang</label><input id="gPangkat" value="${esc(g.pangkat || '')}"></div>
+        <div><label>Mata Pelajaran</label><input id="gMapel" value="${esc(g.mapel || '')}"></div>
+        <div><label>HP Guru</label><input id="gHp" value="${esc(g.hp || '')}"></div>
+      </div></div>
+      <div style="text-align:right;margin-bottom:2rem">
+        <button class="btn btn-abu" onclick="tutupEdit()">Batal</button>
+        <button class="btn btn-hijau" id="btnSimpanGuru">💾 Simpan</button>
+      </div>`;
+  }
+  function bacaFormGuru() {
+    return {
+      npsn: $id('gNpsn').value, nama: $id('gNama').value.trim(), nip: $id('gNip').value.trim(),
+      status: $id('gStatus').value.trim(), pangkat: $id('gPangkat').value.trim(),
+      mapel: $id('gMapel').value.trim(), hp: $id('gHp').value.trim()
+    };
+  }
+  window.bukaTambahGuru = function () {
+    if (!(data.daftarSekolah || []).length) return notif('Tambahkan sekolah dahulu sebelum menambah guru.', true);
+    tampilEditor(formGuru({}, false)); pasangSimpanGuru(null);
+  };
+  window.bukaEditGuru = function (baris) {
+    const x = (data.guru || []).find(d => d.baris === baris); if (!x) return;
+    tampilEditor(formGuru(x, true)); pasangSimpanGuru(baris);
+  };
+  function pasangSimpanGuru(baris) {
+    $id('btnSimpanGuru').onclick = () => {
+      const d = bacaFormGuru();
+      if (!d.npsn) return notif('Pilih sekolah untuk guru ini', true);
+      if (!d.nama) return notif('Nama guru wajib diisi', true);
+      simpan(baris ? 'guruedit' : 'gurutambah', baris ? { baris, data: d } : { data: d }, 'btnSimpanGuru');
+    };
+  }
+
+  /* ============ HAPUS ============ */
+  window.hapusSekolah = function (baris) {
+    const x = (data.sekolah || []).find(d => d.baris === baris); if (!x) return;
+    if (!confirm(`Hapus sekolah "${x.sekolah}" (NPSN ${x.npsn}) dari master?`)) return;
+    jalankanHapus('sekolahhapus', { baris, npsn: x.npsn }, r =>
+      `Sekolah ini masih punya ${r.nPenilaian} data penilaian dan ${r.nGuru} guru terdaftar.\nTetap hapus dari master? (data penilaian/guru lama tidak ikut terhapus dan bisa menjadi yatim)`);
+  };
+  window.hapusGuru = function (baris) {
+    const x = (data.guru || []).find(d => d.baris === baris); if (!x) return;
+    if (!confirm(`Hapus guru "${x.nama}" dari master?`)) return;
+    jalankanHapus('guruhapus', { baris }, r =>
+      `Guru ini masih punya ${r.nPenilaian} data penilaian.\nTetap hapus dari master? (data penilaian lama tidak ikut terhapus)`);
+  };
+  async function jalankanHapus(aksi, payload, pesanKonfirmasi) {
+    try {
+      let r = await apiPost(aksi, basePayload(payload));
+      if (r.perluKonfirmasi) {
+        if (!confirm(pesanKonfirmasi(r))) return;
+        r = await apiPost(aksi, basePayload(Object.assign({ paksa: true }, payload)));
+      }
+      notif('🗑️ Data master berhasil dihapus.');
+      await muat();
+    } catch (e) { notif('Gagal menghapus: ' + e.message, true); }
+  }
+
+  /* ============ SIMPAN & NAVIGASI ============ */
+  function tampilEditor(html) {
+    $id('halDaftar').style.display = 'none';
+    $id('halEdit').style.display = '';
+    $id('halEdit').innerHTML = html;
+    scrollTo(0, 0);
+  }
+  window.tutupEdit = function () {
+    $id('halEdit').style.display = 'none';
+    $id('halDaftar').style.display = '';
+  };
+  async function simpan(aksi, payload, idBtn) {
+    const b = $id(idBtn);
+    b.disabled = true; b.innerHTML = '<span class="muat"></span> Menyimpan…';
+    try {
+      await apiPost(aksi, basePayload(payload));
+      notif('✅ Data master tersimpan.');
+      tutupEdit();
+      await muat();
+    } catch (e) {
+      notif('Gagal menyimpan: ' + e.message, true);
+      b.disabled = false; b.innerHTML = '💾 Simpan';
+    }
+  }
+
+  function gantiTab(t, btn) {
+    tab = t;
+    ['tabSekolah', 'tabGuru'].forEach(i => $id(i).classList.remove('aktif'));
+    btn.classList.add('aktif');
+    render();
+  }
+  $id('tabSekolah').onclick = e => gantiTab('sekolah', e.target);
+  $id('tabGuru').onclick = e => gantiTab('guru', e.target);
+  $id('cari').oninput = render;
+  $id('muatUlang').onclick = muat;
+  $id('btnTambah').onclick = () => {
+    if (modeAdmin && !kecTerpilih) return notif('Pilih kecamatan dahulu.', true);
+    tab === 'sekolah' ? bukaTambahSekolah() : bukaTambahGuru();
+  };
+  $id('btnPilihKec').onclick = () => { kecTerpilih = $id('fKecamatan').value; muat(); };
+
+  if (modeAdmin) {
+    $id('akunBar').innerHTML = `<div class="info info-biru" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.5rem">
+      <span>🔑 <b>Admin Dinas</b> — Kelola Master seluruh kecamatan</span>
+      <span><a href="hasil-penilaian.html" style="font-weight:700">Hasil Penilaian</a> &nbsp;|&nbsp;
+      <a href="dashboard.html" style="font-weight:700">Dashboard</a> &nbsp;|&nbsp;
+      <a href="#" onclick="Admin.keluar();return false" style="font-weight:700;color:var(--merah)">Keluar</a></span></div>`;
+  } else {
+    barAkun($id('akunBar'), 'Admin Kecamatan ' + (akun.kecamatan || akun.username));
+  }
+  muat();
+})();
+</script>
+</body>
+</html>
