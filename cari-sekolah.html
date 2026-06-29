@@ -5,12 +5,21 @@
 <title>Cari Data Sekolah — SIPEKA</title>
 <link rel="stylesheet" href="css/app.css">
 <style>
-  .kartu-sekolah{margin-bottom:.8rem}
-  .kartu-sekolah table{width:100%;font-size:.9rem;border-top:1px solid #e4e9ef;margin-top:.5rem}
-  .kartu-sekolah td{padding:.25rem 0;vertical-align:top}
-  .kartu-sekolah td.lbl{color:var(--abu);width:45%}
-  .kepala-kartu{display:flex;justify-content:space-between;align-items:flex-start;gap:.6rem;flex-wrap:wrap}
+  .daftar-sklh{border:1px solid #e4e9ef;border-radius:10px;overflow:hidden;background:#fff}
+  .baris-sklh{border-bottom:1px solid #eef1f5}
+  .baris-sklh:last-child{border-bottom:none}
+  .kepala-baris{display:flex;justify-content:space-between;align-items:center;gap:.6rem;padding:.7rem .9rem;cursor:pointer}
+  .kepala-baris:hover{background:#f7f9fb}
+  .kb-kiri{display:flex;align-items:center;gap:.5rem;min-width:0}
+  .chv{color:var(--abu);font-size:.85rem;width:.9rem;display:inline-block;flex:none}
+  .kb-judul{font-weight:700;font-size:.95rem}
+  .kb-sub{font-size:.78rem;color:var(--abu)}
   .btn-salin{white-space:nowrap}
+  .detail-sklh{display:none;padding:0 .9rem .9rem 2.2rem}
+  .detail-sklh.buka{display:block}
+  .detail-sklh table{width:100%;font-size:.88rem;border-top:1px solid #e4e9ef;margin-top:.2rem}
+  .detail-sklh td{padding:.25rem 0;vertical-align:top}
+  .detail-sklh td.lbl{color:var(--abu);width:45%}
 </style>
 </head>
 <body>
@@ -29,13 +38,25 @@
 </header>
 <main>
   <h2 class="judul-hal">🔎 Cari Data Sekolah</h2>
-  <p class="sub-hal">Ketik nama sekolah untuk menampilkan datanya. Klik <b>Salin</b> untuk menyalin data satu sekolah, atau <b>Salin semua hasil</b> untuk seluruh hasil pencarian — lalu tempel (paste) di WhatsApp.</p>
+  <p class="sub-hal">Pilih kolom pada <b>Berdasarkan data</b>, lalu ketik kata kunci (ada saran otomatis). Hasil tampil ringkas — klik baris untuk membuka detail. Klik <b>Salin</b> untuk satu sekolah atau <b>Salin semua hasil</b>, lalu tempel di WhatsApp.</p>
   <div id="akunBar"></div>
   <div id="pesan"></div>
 
   <div class="kartu">
     <div class="baris">
-      <div style="flex:2"><label>Cari nama sekolah</label><input id="cari" placeholder="ketik nama sekolah…" autocomplete="off"></div>
+      <div><label>Berdasarkan data</label>
+        <select id="field">
+          <option value="sekolah" selected>Nama Sekolah</option>
+          <option value="npsn">NPSN</option>
+          <option value="kecamatan">Kecamatan</option>
+          <option value="ks">Nama Kepala Sekolah</option>
+          <option value="pengawas">Nama Pengawas</option>
+        </select>
+      </div>
+      <div style="flex:2"><label>Kata kunci <span style="color:var(--abu);font-weight:400">· ada saran otomatis</span></label>
+        <input id="cari" list="saran" placeholder="ketik nama sekolah…" autocomplete="off">
+        <datalist id="saran"></datalist>
+      </div>
       <div style="display:flex;align-items:flex-end;gap:.5rem">
         <button class="btn btn-hijau" id="btnSalinSemua">📋 Salin semua hasil</button>
         <button class="btn btn-abu" id="muatUlang">⟳ Muat Ulang</button>
@@ -53,6 +74,10 @@
 (function () {
   if (!Admin.wajib()) return;
 
+  const FIELD = {
+    sekolah: { label: 'nama sekolah' }, npsn: { label: 'NPSN' }, kecamatan: { label: 'kecamatan' },
+    ks: { label: 'nama kepala sekolah' }, pengawas: { label: 'nama pengawas' }
+  };
   let semua = [];
   let tampil = [];
   let dariSnapshot = false;
@@ -92,10 +117,21 @@
       notif('✅ Tersalin — tinggal tempel (paste) di WhatsApp.');
     } catch (e) { notif('Gagal menyalin: ' + e.message, true); }
   }
-  window.salinSatu = function (i) {
-    const s = tampil[i]; if (!s) return;
-    salin(teksSekolah(s));
+  window.salinSatu = function (i) { const s = tampil[i]; if (s) salin(teksSekolah(s)); };
+  window.toggleRow = function (i) {
+    const d = $id('det' + i), c = $id('chv' + i);
+    if (!d) return;
+    const buka = d.classList.toggle('buka');
+    if (c) c.textContent = buka ? '▾' : '▸';
   };
+
+  function isiSaran() {
+    const f = $id('field').value;
+    const vals = Array.from(new Set(semua.map(s => String(s[f] || '').trim()).filter(Boolean)))
+      .sort((a, b) => a.localeCompare(b, 'id'));
+    $id('saran').innerHTML = vals.map(v => `<option value="${esc(v)}"></option>`).join('');
+    $id('cari').placeholder = 'ketik ' + (FIELD[f] ? FIELD[f].label : '') + '…';
+  }
 
   async function muat() {
     $id('hasil').innerHTML = '<div class="kartu"><span class="muat"></span> Memuat data sekolah…</div>';
@@ -115,53 +151,63 @@
     semua.sort((a, b) => String(a.sekolah).localeCompare(String(b.sekolah), 'id'));
     $id('pesan').innerHTML = dariSnapshot
       ? '<div class="info info-kuning">📴 Menampilkan data dari snapshot offline (mungkin tidak terbaru).</div>' : '';
+    isiSaran();
     render();
   }
 
   function render() {
+    const f = $id('field').value;
     const cari = $id('cari').value.trim().toLowerCase();
-    tampil = !cari ? semua.slice() : semua.filter(s => String(s.sekolah || '').toLowerCase().includes(cari));
+    tampil = !cari ? semua.slice() : semua.filter(s => String(s[f] || '').toLowerCase().includes(cari));
+    tampil.sort((a, b) => String(a.sekolah).localeCompare(String(b.sekolah), 'id'));
+
     if (!semua.length) {
       $id('hasil').innerHTML = '<div class="kartu"><p style="color:var(--abu)">Belum ada data sekolah di master.</p></div>';
       return;
     }
     if (!tampil.length) {
-      $id('hasil').innerHTML = `<div class="kartu"><p style="color:var(--abu)">Tidak ada sekolah cocok dengan "<b>${esc($id('cari').value.trim())}</b>".</p></div>`;
+      $id('hasil').innerHTML = `<div class="kartu"><p style="color:var(--abu)">Tidak ada sekolah cocok dengan "<b>${esc($id('cari').value.trim())}</b>" pada kolom ${esc(FIELD[f] ? FIELD[f].label : '')}.</p></div>`;
       return;
     }
     const baris = (lbl, val) => `<tr><td class="lbl">${lbl}</td><td>${esc(val || '-')}</td></tr>`;
-    let html = `<p style="font-size:.85rem;color:var(--abu);margin:.2rem 0 .6rem">${tampil.length} sekolah ditemukan${cari ? '' : ' (semua)'} </p>`;
+    let html = `<p style="font-size:.85rem;color:var(--abu);margin:.2rem 0 .6rem">Pencocokan: mengandung sebagian kata · ${tampil.length} sekolah ditemukan</p><div class="daftar-sklh">`;
     tampil.forEach((s, i) => {
-      html += `<div class="kartu kartu-sekolah">
-        <div class="kepala-kartu">
-          <div>
-            <div style="font-weight:700">${esc(s.sekolah)}</div>
-            <div style="font-size:.8rem;color:var(--abu)">NPSN ${esc(s.npsn)} · ${esc(s.jenjang || '-')} · Kec. ${esc(s.kecamatan || '-')}</div>
+      const buka = i === 0;
+      html += `<div class="baris-sklh">
+        <div class="kepala-baris" onclick="toggleRow(${i})">
+          <div class="kb-kiri">
+            <span class="chv" id="chv${i}">${buka ? '▾' : '▸'}</span>
+            <div style="min-width:0">
+              <div class="kb-judul">${esc(s.sekolah)}</div>
+              <div class="kb-sub">NPSN ${esc(s.npsn)} · ${esc(s.jenjang || '-')} · Kec. ${esc(s.kecamatan || '-')}</div>
+            </div>
           </div>
-          <button class="btn btn-biru btn-salin" onclick="salinSatu(${i})">📋 Salin</button>
+          <button class="btn btn-biru btn-salin" onclick="event.stopPropagation();salinSatu(${i})">📋 Salin</button>
         </div>
-        <table>
-          ${baris('NPSN', s.npsn)}
-          ${baris('Nama Sekolah', s.sekolah)}
-          ${baris('Jenjang', s.jenjang)}
-          ${baris('Kecamatan', s.kecamatan)}
-          ${baris('Kepala Sekolah', s.ks)}
-          ${baris('HP Kepala Sekolah', s.hpKS)}
-          ${baris('Nama Pengawas', s.pengawas)}
-          ${baris('HP Pengawas', s.hpPengawas)}
-          ${baris('NIP Kepala Sekolah', s.nipKS)}
-        </table>
+        <div class="detail-sklh${buka ? ' buka' : ''}" id="det${i}">
+          <table>
+            ${baris('NPSN', s.npsn)}
+            ${baris('Nama Sekolah', s.sekolah)}
+            ${baris('Jenjang', s.jenjang)}
+            ${baris('Kecamatan', s.kecamatan)}
+            ${baris('Kepala Sekolah', s.ks)}
+            ${baris('HP Kepala Sekolah', s.hpKS)}
+            ${baris('Nama Pengawas', s.pengawas)}
+            ${baris('HP Pengawas', s.hpPengawas)}
+            ${baris('NIP Kepala Sekolah', s.nipKS)}
+          </table>
+        </div>
       </div>`;
     });
-    $id('hasil').innerHTML = html;
+    $id('hasil').innerHTML = html + '</div>';
   }
 
+  $id('field').onchange = () => { isiSaran(); render(); };
   $id('cari').oninput = render;
   $id('muatUlang').onclick = muat;
   $id('btnSalinSemua').onclick = () => {
     if (!tampil.length) return notif('Tidak ada hasil untuk disalin.', true);
-    const teks = tampil.map(teksSekolah).join(PEMISAH);
-    salin(teks);
+    salin(tampil.map(teksSekolah).join(PEMISAH));
   };
 
   if (Admin.offlineSesi) $id('pesan').innerHTML = '<div class="info info-kuning">📴 Sesi admin offline — data diambil dari snapshot bila tersedia.</div>';
