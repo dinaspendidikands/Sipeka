@@ -134,9 +134,9 @@
   }
   function isiFilter() {
     const L = tab === 'guru' ? layoutGuru() : layoutKS(tab);
-    const kolB = tab === 'guru' ? L.id.bulan : L.id.bulan;
-    const bln = [...new Set((data[tab] || []).map(x => x.row[kolB]))];
-    isiSelect($id('fBulan'), BULAN_LIST.filter(b => bln.includes(b)), 'Semua bulan');
+    const kolB = L.id.bulan;
+    const blnUpper = new Set((data[tab] || []).map(x => String(x.row[kolB]).toUpperCase()));
+    isiSelect($id('fBulan'), BULAN_LIST.filter(b => blnUpper.has(b.toUpperCase())), 'Semua bulan');
   }
 
   function render() {
@@ -146,7 +146,8 @@
     let html = '';
     if (tab === 'guru') {
       const L = layoutGuru();
-      let rows = data.guru.filter(x => (!bln || x.row[L.id.bulan] === bln) &&
+      const blnU = bln.toUpperCase();
+      let rows = data.guru.filter(x => (!bln || String(x.row[L.id.bulan]).toUpperCase() === blnU) &&
         (!cari || (String(x.row[L.id.nama]) + String(x.row[L.id.sekolah])).toLowerCase().includes(cari)));
       html = `<p style="font-size:.85rem;color:var(--abu)">${rows.length} pengisian — Kecamatan ${esc(namaKec)}</p>
         <table><tr><th>Nama Guru</th><th>Sekolah</th><th>Mapel</th><th>Bulan</th><th>Rata (%)</th><th>Waktu Isi</th><th class="kol-aksi">Aksi</th></tr>`;
@@ -158,7 +159,7 @@
       });
     } else {
       const L = layoutKS(tab);
-      let rows = (data[tab] || []).filter(x => (!bln || x.row[L.id.bulan] === bln) &&
+      let rows = (data[tab] || []).filter(x => (!bln || String(x.row[L.id.bulan]).toUpperCase() === blnU) &&
         (!cari || (String(x.row[L.id.sekolah]) + String(x.row[L.id.ks])).toLowerCase().includes(cari)));
       html = `<p style="font-size:.85rem;color:var(--abu)">${rows.length} pengisian — Kecamatan ${esc(namaKec)}</p>
         <table><tr><th>Sekolah</th><th>Kepala Sekolah</th>${tab === 'sdsmp' ? '<th>Periode</th>' : ''}<th>Bulan</th><th>Minggu</th>
@@ -344,7 +345,6 @@
     $id('akunBar').innerHTML = `<div class="info info-biru" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.5rem">
       <span>🔑 <b>Admin Dinas</b> — Hasil Penilaian seluruh kecamatan</span>
       <span><a href="kelola-master.html" style="font-weight:700">Kelola Master</a> &nbsp;|&nbsp;
-      <a href="cari-sekolah.html" style="font-weight:700">Cari Sekolah</a> &nbsp;|&nbsp;
       <a href="dashboard.html" style="font-weight:700">Dashboard</a> &nbsp;|&nbsp;
       <a href="#" onclick="Admin.keluar();return false" style="font-weight:700;color:var(--merah)">Keluar</a></span></div>`;
   } else {
