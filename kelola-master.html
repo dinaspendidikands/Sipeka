@@ -36,6 +36,15 @@
 
   <!-- ===== DAFTAR ===== -->
   <div id="halDaftar">
+    <div class="kartu" id="kartuSinkron">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:.6rem;flex-wrap:wrap">
+        <div>
+          <b>🔄 Sinkronkan Akun ke Master Sekolah</b>
+          <div style="font-size:.82rem;color:var(--abu);max-width:640px">Samakan data <b>AKUN_KS</b> &amp; <b>AKUN_PENGAWAS</b> dengan <b>MASTER_SEKOLAH</b>: nama sekolah, nama kepala sekolah, dan HP pengawas. Akun yang belum ada akan dibuat memakai password awal (default <b>sipeka2026</b> bila belum diatur lewat Generate Akun). Password, kunci login, dan NIP tidak diubah.</div>
+        </div>
+        <button class="btn btn-biru" id="btnSinkron">🔄 Sinkronkan Akun</button>
+      </div>
+    </div>
     <div class="kartu" id="kartuKec" style="display:none">
       <div class="baris">
         <div><label>Kecamatan</label><select id="fKecamatan"></select></div>
@@ -147,6 +156,7 @@
         html += `<tr><td>${esc(x.npsn)}</td><td>${esc(x.sekolah)}</td><td>${esc(x.jenjang)}</td>
           <td>${esc(x.ks)}</td><td>${esc(x.pengawas)}</td>
           <td class="kol-aksi"><button class="btn btn-biru btn-aksi" onclick="bukaEditSekolah(${x.baris})">✏️ Edit</button>
+          <button class="btn btn-abu btn-aksi" onclick="resetPwKS(${x.baris})">🔑 Reset PW</button>
           <button class="btn btn-merah btn-aksi" onclick="hapusSekolah(${x.baris})">🗑️ Hapus</button></td></tr>`;
       });
     } else {
@@ -308,6 +318,15 @@
     jalankanHapus('sekolahhapus', { baris, npsn: x.npsn }, r =>
       `Sekolah ini masih punya ${r.nPenilaian} data penilaian dan ${r.nGuru} guru terdaftar.\nTetap hapus dari master? (data penilaian/guru lama tidak ikut terhapus dan bisa menjadi yatim)`);
   };
+  window.resetPwKS = async function (baris) {
+    const x = (data.sekolah || []).find(d => d.baris === baris); if (!x) return;
+    if (!confirm(`Reset password akun Kepala Sekolah "${x.sekolah}" (NPSN ${x.npsn}) ke password awal (default sipeka2026)?\n\n` +
+      'Kepala sekolah wajib mengganti password saat login berikutnya.')) return;
+    try {
+      await apiPost('resetpwks', basePayload({ npsn: x.npsn }));
+      notif('🔑 Password KS "' + x.sekolah + '" direset ke password awal.');
+    } catch (e) { notif('Gagal reset: ' + e.message, true); }
+  };
   window.hapusGuru = function (baris) {
     const x = (data.guru || []).find(d => d.baris === baris); if (!x) return;
     if (!confirm(`Hapus guru "${x.nama}" dari master?`)) return;
@@ -366,6 +385,28 @@
     tab === 'sekolah' ? bukaTambahSekolah() : bukaTambahGuru();
   };
   $id('btnPilihKec').onclick = () => { kecTerpilih = $id('fKecamatan').value; muat(); };
+
+  $id('btnSinkron').onclick = async () => {
+    const lingkup = modeAdmin ? 'SELURUH kecamatan' : ('kecamatan ' + (akun.kecamatan || akun.username));
+    if (!confirm('Sinkronkan data akun (KS & Pengawas) dengan Master Sekolah untuk ' + lingkup + '?\n\n' +
+      'Data akun yang ada akan diperbarui agar sama dengan master, dan akun yang belum ada akan dibuat. ' +
+      'Password, kunci login, dan NIP TIDAK diubah.')) return;
+    const b = $id('btnSinkron'); const t = b.innerHTML;
+    b.disabled = true; b.innerHTML = '<span class="muat"></span> Menyinkronkan…';
+    try {
+      const r = await apiPost('sinkronakun', authPayload());
+      const gagal = (r.ks.gagalTambah || 0) + (r.pengawas.gagalTambah || 0);
+      const ket = `Sinkronisasi selesai (${esc(r.lingkup || '')}). ` +
+        `AKUN_KS: ${r.ks.baru} akun baru, ${r.ks.diperbarui} diperbarui. ` +
+        `AKUN_PENGAWAS: ${r.pengawas.baru} akun baru, ${r.pengawas.diperbarui} diperbarui.`;
+      $id('pesan').innerHTML = `<div class="info info-${gagal ? 'kuning' : 'biru'}">✅ ${ket}` +
+        (gagal ? `<br>⚠ ${gagal} akun belum bisa dibuat karena <b>password awal belum diset</b> — jalankan <b>Generate Akun</b> di menu Admin dahulu, lalu sinkronkan lagi.` : '') + '</div>';
+      notif('✅ Sinkronisasi akun selesai.');
+    } catch (e) {
+      notif('Gagal sinkronisasi: ' + e.message, true);
+    }
+    b.disabled = false; b.innerHTML = t;
+  };
 
   if (modeAdmin) {
     $id('akunBar').innerHTML = `<div class="info info-biru" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.5rem">
