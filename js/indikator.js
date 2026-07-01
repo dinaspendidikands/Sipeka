@@ -134,9 +134,9 @@ const TW_LIST = ['TW1','TW2','TW3','TW4'];
 const PENGATURAN_DEFAULT = {
   // kategori guru: nilai persen 0–100, urut dari ambang tertinggi
   kategoriGuru: [
-    { min: 90, label: 'Sangat Baik' },
-    { min: 76, label: 'Baik' },
-    { min: 61, label: 'Cukup' },
+    { min: 80, label: 'Sangat Baik' },
+    { min: 60, label: 'Baik' },
+    { min: 40, label: 'Cukup' },
     { min: 0,  label: 'Kurang' }
   ],
   // kategori KS: berdasarkan Rata Capaian skala 1–5
